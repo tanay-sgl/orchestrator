@@ -117,7 +117,8 @@ func InsertRowEmbedding(db *pg.DB, request RowEmbeddingsRequest, embedding pgvec
 
 
 func GetSimilarDocuments(db *pg.DB, queryEmbedding pgvector.Vector, limit int) ([]Document, error) {
-	var documents []Document
+	fmt.Printf("GetSimilarDocuments\n")
+    var documents []Document
 	_, err := db.Query(&documents, `
         SELECT collection_slug, cid, content
         FROM documents
@@ -129,23 +130,30 @@ func GetSimilarDocuments(db *pg.DB, queryEmbedding pgvector.Vector, limit int) (
 }
 
 func GetSimilarRowsFromTable(db *pg.DB, tableName string, queryEmbedding pgvector.Vector, limit int) ([]map[string]interface{}, error) {
-	var rows []map[string]interface{}
-	_, err := db.Query(&rows, fmt.Sprintf(`
-        SELECT (r.*)::jsonb - 'embedding' as row
+    fmt.Printf("GetSimilarRowsFromTable\n")
+    fmt.Printf(tableName+"\n")
+    var rows []map[string]interface{}
+    _, err := db.Query(&rows, fmt.Sprintf(`
+        SELECT jsonb_object_agg(
+            key,
+            CASE WHEN key != 'embedding' THEN value ELSE NULL END
+        ) as row
         FROM (
             SELECT *
             FROM %s
             ORDER BY embedding <=> ?
             LIMIT ?
-        ) r
+        ) r,
+        LATERAL jsonb_each(to_jsonb(r))
+        GROUP BY r
     `, tableName), queryEmbedding, limit)
-
-	return rows, err
+    return rows, err
 }
 
 
 func GetAllSimilarRowsFromDB(db *pg.DB, tables []string, queryEmbedding pgvector.Vector, limitPerTable int) (map[string][]map[string]interface{}, error) {
-	results := make(map[string][]map[string]interface{})
+	fmt.Printf("GetAllSimilarRowsFromDB\n")
+    results := make(map[string][]map[string]interface{})
 
 	for _, tableName := range tables {
 		rows, err := GetSimilarRowsFromTable(db, tableName, queryEmbedding, limitPerTable)
@@ -156,6 +164,17 @@ func GetAllSimilarRowsFromDB(db *pg.DB, tables []string, queryEmbedding pgvector
 	}
 
 	return results, nil
+}
+
+func GetRecentMessages(db *pg.DB, conversationID int64, limit int) ([]Message, error) {
+    fmt.Printf("GetRecentMessages\n")
+    var messages []Message
+    err := db.Model(&messages).
+        Where("conversation_id = ?", conversationID).
+        Order("created_at ASC").
+        Limit(limit).
+        Select()
+    return messages, err
 }
 
 func PrintDatabaseSchema(db *pg.DB) {

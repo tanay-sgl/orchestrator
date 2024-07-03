@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -91,29 +94,61 @@ func SetupRouter() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Processing started"})
 	})
 
-	authorized.POST("llmQuery", func(c *gin.Context) {
-		user := c.MustGet(gin.AuthUserKey).(string)
+	authorized.GET("llmQuery", func(c *gin.Context) {
+        user := c.MustGet(gin.AuthUserKey).(string)
 
-		//TODO change this
-		if user != "foo" {
-			c.JSON(http.StatusOK, gin.H{"status": "error"})
-		}
+        // TODO: Implement proper authentication
+        if user != "foo" {
+            c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+            return
+        }
 
-		var request LLMQueryRequest
-		if err := c.ShouldBindJSON(&request); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+        var request LLMQueryRequest
+        if err := c.ShouldBindQuery(&request); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+            return
+        }
 
-		// Process the request asynchronously
-		go func() {
-			err := ProcessLLMQuery(request)
-			if err != nil {
-				// Log the error, as we can't return it to the client in an asynchronous operation
-				log.Printf("Error processing LLM query: %v", err)
-			}
-		}()
-	})
+        fmt.Printf("Received request: %+v\n", request)
+
+        // Set headers for streaming response
+        c.Header("Content-Type", "text/event-stream")
+        c.Header("Cache-Control", "no-cache")
+        c.Header("Connection", "keep-alive")
+        c.Header("Transfer-Encoding", "chunked")
+
+        // Create a channel to receive the streamed response
+        responseChan := make(chan string)
+        errorChan := make(chan error)
+
+        // Process the request asynchronously
+        go func() {
+            err := ProcessLLMQueryStream(request, responseChan)
+            if err != nil {
+                errorChan <- err
+            }
+            close(responseChan)
+            close(errorChan)
+        }()
+
+        c.Stream(func(w io.Writer) bool {
+            select {
+            case response, ok := <-responseChan:
+                if !ok {
+                    return false
+                }
+                // Send the response chunk to the client
+                data, _ := json.Marshal(gin.H{"response": response})
+                c.SSEvent("message", string(data))
+                return true
+            case err := <-errorChan:
+                // Send error message to the client
+                data, _ := json.Marshal(gin.H{"status": "error", "message": err.Error()})
+                c.SSEvent("error", string(data))
+                return false
+            }
+        })
+    })
 
 	return router
 }

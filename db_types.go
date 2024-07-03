@@ -8,18 +8,18 @@ import (
 func GetTableStruct(tableName string) reflect.Type {
 	tableMap := map[string]reflect.Type{
 		"collection":        reflect.TypeOf(Collection{}),
-		"collectiondynamic": reflect.TypeOf(CollectionDynamic{}),
-		"nftlistings":       reflect.TypeOf(NFTListing{}),
-		"nftownership":      reflect.TypeOf(NFTOwnership{}),
-		"nftoffers":         reflect.TypeOf(NFTOffer{}),
-		"erc20transfers":    reflect.TypeOf(ERC20Transfer{}),
+		"collection_dynamic": reflect.TypeOf(CollectionDynamic{}),
+		"nft_listings":       reflect.TypeOf(NFTListing{}),
+		"nft_ownership":      reflect.TypeOf(NFTOwnership{}),
+		"nft_offers":         reflect.TypeOf(NFTOffer{}),
+		"erc20_transfers":    reflect.TypeOf(ERC20Transfer{}),
 		"fee":               reflect.TypeOf(Fee{}),
 		"nft":               reflect.TypeOf(NFT{}),
 		"contract":          reflect.TypeOf(Contract{}),
-		"paymenttoken":      reflect.TypeOf(PaymentToken{}),
-		"nftdynamic":        reflect.TypeOf(NFTDynamic{}),
-		"tokenprice":        reflect.TypeOf(TokenPrice{}),
-		"nftevents":         reflect.TypeOf(NFTEvent{}),
+		"payment_tokens":      reflect.TypeOf(PaymentToken{}),
+		"nft_dynamic":        reflect.TypeOf(NFTDynamic{}),
+		"token_price":        reflect.TypeOf(TokenPrice{}),
+		"nft_events":         reflect.TypeOf(NFTEvent{}),
 		"documents":         reflect.TypeOf(Document{}),
 	}
 	return tableMap[tableName]
@@ -28,18 +28,18 @@ func GetTableStruct(tableName string) reflect.Type {
 // All table names except document
 var TableNames = []string{
 	"collection",
-	"collectiondynamic",
-	"nftlistings",
-	"nftownership",
-	"nftoffers",
-	"erc20transfers",
+	"collection_dynamic",
+	"nft_listings",
+	"nft_ownership",
+	"nft_offers",
+	"erc20_transfers",
 	"fee",
 	"nft",
 	"contract",
-	"paymenttoken",
-	"nftdynamic",
-	"tokenprice",
-	"nftevents",
+	"payment_tokens",
+	"nft_dynamic",
+	"token_price",
+	"nft_events",
 }
 
 type Collection struct {

@@ -10,6 +10,9 @@ import (
 )
 
 func CreateEmbedding(requestModel string, content string) (pgvector.Vector, error) {
+	fmt.Printf("Creating embedding...\n")
+	fmt.Printf(requestModel+"\n")
+	fmt.Printf(content+"\n")
 	model, err := ollama.New(ollama.WithModel(requestModel))
 	if err != nil {
 		return pgvector.Vector{}, fmt.Errorf("failed to create ollama model: %w", err)
