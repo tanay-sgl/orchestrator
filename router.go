@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -94,61 +92,34 @@ func SetupRouter() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Processing started"})
 	})
 
-	authorized.GET("llmQuery", func(c *gin.Context) {
-        user := c.MustGet(gin.AuthUserKey).(string)
-
-        // TODO: Implement proper authentication
-        if user != "foo" {
-            c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
-            return
-        }
-
-        var request LLMQueryRequest
-        if err := c.ShouldBindQuery(&request); err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
-            return
-        }
-
-        fmt.Printf("Received request: %+v\n", request)
-
-        // Set headers for streaming response
-        c.Header("Content-Type", "text/event-stream")
-        c.Header("Cache-Control", "no-cache")
-        c.Header("Connection", "keep-alive")
-        c.Header("Transfer-Encoding", "chunked")
-
-        // Create a channel to receive the streamed response
-        responseChan := make(chan string)
-        errorChan := make(chan error)
-
-        // Process the request asynchronously
-        go func() {
-            err := ProcessLLMQueryStream(request, responseChan)
-            if err != nil {
-                errorChan <- err
-            }
-            close(responseChan)
-            close(errorChan)
-        }()
-
-        c.Stream(func(w io.Writer) bool {
-            select {
-            case response, ok := <-responseChan:
-                if !ok {
-                    return false
-                }
-                // Send the response chunk to the client
-                data, _ := json.Marshal(gin.H{"response": response})
-                c.SSEvent("message", string(data))
-                return true
-            case err := <-errorChan:
-                // Send error message to the client
-                data, _ := json.Marshal(gin.H{"status": "error", "message": err.Error()})
-                c.SSEvent("error", string(data))
-                return false
-            }
-        })
-    })
+	
+		authorized.POST("llmQuery", func(c *gin.Context) {
+			user := c.MustGet(gin.AuthUserKey).(string)
+	
+			// TODO: Implement proper authentication
+			if user != "foo" {
+				c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+				return
+			}
+	
+			var request LLMQueryRequest
+			if err := c.ShouldBindJSON(&request); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+				return
+			}
+	
+			fmt.Print("Received request: \n")
+			fmt.Printf("%+v\n", request)
+	
+			// Process the request synchronously
+			response, err := ProcessLLMQuery(request)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+				return
+			}
+	
+			c.JSON(http.StatusOK, gin.H{"status": "success", "response": response})
+		})
 
 	return router
 }
