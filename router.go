@@ -92,34 +92,33 @@ func SetupRouter() *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Processing started"})
 	})
 
-	
-		authorized.POST("llmQuery", func(c *gin.Context) {
-			user := c.MustGet(gin.AuthUserKey).(string)
-	
-			// TODO: Implement proper authentication
-			if user != "foo" {
-				c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
-				return
-			}
-	
-			var request LLMQueryRequest
-			if err := c.ShouldBindJSON(&request); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
-				return
-			}
-	
-			fmt.Print("Received request: \n")
-			fmt.Printf("%+v\n", request)
-	
-			// Process the request synchronously
-			response, err := ProcessLLMQuery(request)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
-				return
-			}
-	
-			c.JSON(http.StatusOK, gin.H{"status": "success", "response": response})
-		})
+	authorized.POST("llmQuery", func(c *gin.Context) {
+		user := c.MustGet(gin.AuthUserKey).(string)
+
+		// TODO: Implement proper authentication
+		if user != "foo" {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+			return
+		}
+
+		var request LLMQueryRequest
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+			return
+		}
+
+		fmt.Print("Received request: \n")
+		fmt.Printf("%+v\n", request)
+
+		// Process the request synchronously
+		response, err := ProcessLLMQuery(request)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": "success", "response": response})
+	})
 
 	return router
 }

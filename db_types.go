@@ -7,20 +7,20 @@ import (
 
 func GetTableStruct(tableName string) reflect.Type {
 	tableMap := map[string]reflect.Type{
-		"collection":        reflect.TypeOf(Collection{}),
+		"collection":         reflect.TypeOf(Collection{}),
 		"collection_dynamic": reflect.TypeOf(CollectionDynamic{}),
 		"nft_listings":       reflect.TypeOf(NFTListing{}),
 		"nft_ownership":      reflect.TypeOf(NFTOwnership{}),
 		"nft_offers":         reflect.TypeOf(NFTOffer{}),
 		"erc20_transfers":    reflect.TypeOf(ERC20Transfer{}),
-		"fee":               reflect.TypeOf(Fee{}),
-		"nft":               reflect.TypeOf(NFT{}),
-		"contract":          reflect.TypeOf(Contract{}),
-		"payment_tokens":      reflect.TypeOf(PaymentToken{}),
+		"fee":                reflect.TypeOf(Fee{}),
+		"nft":                reflect.TypeOf(NFT{}),
+		"contract":           reflect.TypeOf(Contract{}),
+		"payment_tokens":     reflect.TypeOf(PaymentToken{}),
 		"nft_dynamic":        reflect.TypeOf(NFTDynamic{}),
 		"token_price":        reflect.TypeOf(TokenPrice{}),
 		"nft_events":         reflect.TypeOf(NFTEvent{}),
-		"documents":         reflect.TypeOf(Document{}),
+		"documents":          reflect.TypeOf(Document{}),
 	}
 	return tableMap[tableName]
 }
