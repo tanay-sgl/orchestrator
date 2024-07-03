@@ -1,0 +1,3 @@
+.env
+database_update_sql
+requests.http
