@@ -1,25 +1,34 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 
-	"os"
 	"time"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/pgvector/pgvector-go"
 )
 
-func ConnectToDatabase() *pg.DB {
-	return pg.Connect(&pg.Options{
-		Addr:     os.Getenv("TIMESCALE_ADDRESS"),
-		User:     os.Getenv("TIMESCALE_USER"),
-		Password: os.Getenv("TIMESCALE_PASSWORD"),
-		Database: os.Getenv("TIMESCALE_DATABASE"),
-	})
+func CreateDatabaseConnectionFromEnv() (*pg.DB, error) {
+    db := pg.Connect(&pg.Options{
+        Addr:     os.Getenv("TIMESCALE_ADDRESS"),
+        User:     os.Getenv("TIMESCALE_USER"),
+        Password: os.Getenv("TIMESCALE_PASSWORD"),
+        Database: os.Getenv("TIMESCALE_DATABASE"),
+    })
+
+    err := db.Ping(context.Background())
+    if err != nil {
+        return nil, fmt.Errorf("failed to connect to database: %w", err)
+    }
+
+    return db, nil
 }
+
 
 func GetRowAsAString(db *pg.DB, request RowEmbeddingsRequest) (string, error) {
 	// Get the struct type for the table

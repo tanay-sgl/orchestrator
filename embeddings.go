@@ -10,32 +10,28 @@ import (
 )
 
 func CreateEmbedding(requestModel string, content string) (pgvector.Vector, error) {
-	fmt.Printf("Creating embedding...\n")
-	fmt.Printf(requestModel + "\n")
-	fmt.Printf(content + "\n")
 	model, err := ollama.New(ollama.WithModel(requestModel))
 	if err != nil {
 		return pgvector.Vector{}, fmt.Errorf("failed to create ollama model: %w", err)
 	}
 
-	contentSlice := []string{content}
-	fmt.Printf("Content slice: %v\n", contentSlice)
-
-	embeddingMatrix, err := model.CreateEmbedding(context.Background(), contentSlice)
+	twoDimensionalEmbedding, err := model.CreateEmbedding(context.Background(), []string{content})
 	if err != nil {
 		return pgvector.Vector{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
 
-	// Flatten the 2D embedding matrix into a 1D slice
-	embedding := make([]float32, 0, len(embeddingMatrix)*len(embeddingMatrix[0]))
-	for _, row := range embeddingMatrix {
-		embedding = append(embedding, row...)
+	oneDimensionalEmbedding := make([]float32, 0, len(twoDimensionalEmbedding)*len(twoDimensionalEmbedding[0]))
+	for _, row := range twoDimensionalEmbedding {
+		oneDimensionalEmbedding = append(oneDimensionalEmbedding, row...)
 	}
-	return pgvector.NewVector(embedding), nil
+	return pgvector.NewVector(oneDimensionalEmbedding), nil
 }
 
 func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error {
-	db := ConnectToDatabase()
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return fmt.Errorf("error creating database connection: %w", err)
+	}
 	defer db.Close()
 	content, err := GetFileChunksFromCIDAsStrings(request.CID, 1000)
 	fmt.Printf("Content: %v\n", content)
@@ -71,7 +67,10 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 }
 
 func ProcessRowEmbeddings(request RowEmbeddingsRequest) {
-	db := ConnectToDatabase()
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		fmt.Errorf("error creating database connection: %w", err)
+	}
 	defer db.Close()
 
 	row, err := GetRowAsAString(db, request)
