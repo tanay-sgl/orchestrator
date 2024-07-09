@@ -10,45 +10,17 @@ import (
 	"strings"
 )
 
-type RelevantData struct {
-	SimilarRows      map[string][]map[string]interface{}
-	SimilarDocuments []Document
-}
 
-type OllamaRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-}
-
-type OllamaResponse struct {
-	Model     string `json:"model"`
-	CreatedAt string `json:"created_at"`
-	Message   struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	} `json:"message"`
-	DoneReason         string `json:"done_reason"`
-	Done               bool   `json:"done"`
-	TotalDuration      int64  `json:"total_duration"`
-	LoadDuration       int64  `json:"load_duration"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration"`
-	EvalCount          int    `json:"eval_count"`
-	EvalDuration       int64  `json:"eval_duration"`
-}
-type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-func GetRelevantData(request LLMQueryRequest) RelevantData {
-	fmt.Printf("Getting relevant data...\n")
-	requestEmbedding, err := CreateEmbedding("nomic-embed-text", request.Input)
+func GetRelevantDataWithoutAnalysisFromAllTables(request LLMQueryRequest) RelevantData {
+	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db := ConnectToDatabase()
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		fmt.Errorf("Error connecting to database: %v", err)
+	}
 	defer db.Close()
 
 	similarRows, err := GetAllSimilarRowsFromDB(db, TableNames, requestEmbedding, request.SearchLimit)
@@ -61,18 +33,14 @@ func GetRelevantData(request LLMQueryRequest) RelevantData {
 		log.Fatal(err)
 	}
 
-	fmt.Print("similar documents")
-	fmt.Print(similarDocumentContent)
-	fmt.Print("similar rows")
-	fmt.Print(similarRows)
 	return RelevantData{
 		SimilarRows:      similarRows,
 		SimilarDocuments: similarDocumentContent,
 	}
 }
 
+
 func FormatPromptWithContext(request LLMQueryRequest, relevantData RelevantData) ChatMessage {
-	fmt.Printf("Formatting prompt...\n")
 	var contentBuilder strings.Builder
 
 	// Add new user input
@@ -92,7 +60,6 @@ func FormatPromptWithContext(request LLMQueryRequest, relevantData RelevantData)
 }
 
 func FormatMessages(contextMessage ChatMessage, messages []Message) []ChatMessage {
-	fmt.Print("Formatting messages...\n")
 	formattedMessages := make([]ChatMessage, 0, len(messages)+1)
 
 	for _, msg := range messages {
@@ -105,6 +72,13 @@ func FormatMessages(contextMessage ChatMessage, messages []Message) []ChatMessag
 	formattedMessages = append(formattedMessages, contextMessage)
 
 	return formattedMessages
+}
+
+func CreateCustomChatMessage(role string, content string) ChatMessage {
+	return ChatMessage{
+		Role:    role,
+		Content: content,
+	}
 }
 
 func QueryOllama(request LLMQueryRequest, chatMessages []ChatMessage) string {
@@ -167,19 +141,19 @@ func QueryOllama(request LLMQueryRequest, chatMessages []ChatMessage) string {
 }
 
 func ProcessLLMQuery(request LLMQueryRequest) (string, error) {
-	fmt.Printf("Processing query...\n")
-	db := ConnectToDatabase()
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		fmt.Errorf("Error connecting to database: %v", err)
+	}
 	defer db.Close()
-	messageWithContext := FormatPromptWithContext(request, GetRelevantData(request))
-	fmt.Print(messageWithContext)
-	fmt.Printf("Sending message to Ollama...\n")
+	messageWithContext := FormatPromptWithContext(request, GetRelevantDataWithoutAnalysisFromAllTables(request))
+
 	previousMessages, err := GetRecentMessages(db, request.ConversationID, request.SearchLimit)
 	if err != nil {
-
 		return "", err
 	}
 	messages := FormatMessages(messageWithContext, previousMessages)
-	fmt.Printf("with messages\n")
-	db.Close()
+
 	return QueryOllama(request, messages), nil
 }
+
