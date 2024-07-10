@@ -4,11 +4,13 @@ type RelevantData struct {
 	SimilarRows      map[string][]map[string]interface{}
 	SimilarDocuments []Document
 }
+
 // Ollama HTTP request format
 type OllamaRequest struct {
 	Model    string        `json:"model"`
 	Messages []ChatMessage `json:"messages"`
 }
+
 // Ollama HTTP response format
 type OllamaResponse struct {
 	Model     string `json:"model"`
@@ -34,10 +36,9 @@ type ChatMessage struct {
 }
 
 type OllamaAgent struct {
-    model        string
-    instructions map[string]string
+	model        string
+	instructions map[string]string
 }
-
 
 // Define types for clarity
 type Instruction string
@@ -116,8 +117,6 @@ SUB QUESTIONS:
 4. [Sub-question 4]
 5. [Sub-question 5]`
 
-
-
 const DataSourceInstruction Instruction = `You are a data sourcing agent. Analyze the query and determine the most appropriate data source(s) to answer it. Consider these options:
 
 1. "documents": Use for queries requiring detailed information from specific documents or context from multiple documents.
@@ -152,8 +151,8 @@ const HallucinationDetectiveInstruction Instruction = `You are a hallucination d
 2. Is the response free from any claims or data not present in the context?
 
 Respond with ONLY ONE of these:
-YES - if the answer to both questions is yes (no hallucination detected).
-NO - if the answer to either question is no (potential hallucination detected).`
+NO - if the answer to both questions is yes (no hallucination detected).
+YES - if the answer to either question is no (potential hallucination detected).`
 
 const CorrectnessDetectiveInstruction Instruction = `You are a correctness detective. Evaluate the given response against the original query and context. Determine:
 
@@ -164,5 +163,3 @@ const CorrectnessDetectiveInstruction Instruction = `You are a correctness detec
 Respond with ONLY ONE of these:
 YES - if the answer to all three questions is yes.
 NO - if the answer to any question is no.`
-
-

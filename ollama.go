@@ -10,55 +10,6 @@ import (
 	"strings"
 )
 
-
-func GetRelevantDataWithoutAnalysisFromAllTables(request LLMQueryRequest) RelevantData {
-	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	db, err := CreateDatabaseConnectionFromEnv()
-	if err != nil {
-		fmt.Errorf("Error connecting to database: %v", err)
-	}
-	defer db.Close()
-
-	similarRows, err := GetAllSimilarRowsFromDB(db, TableNames, requestEmbedding, request.SearchLimit)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	similarDocumentContent, err := GetSimilarDocuments(db, requestEmbedding, request.SearchLimit)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return RelevantData{
-		SimilarRows:      similarRows,
-		SimilarDocuments: similarDocumentContent,
-	}
-}
-
-
-func FormatPromptWithContext(request LLMQueryRequest, relevantData RelevantData) ChatMessage {
-	var contentBuilder strings.Builder
-
-	// Add new user input
-	contentBuilder.WriteString(fmt.Sprintf("%s\n\n", request.Input))
-
-	// Add relevant data context
-	contentBuilder.WriteString("Context from relevant documents:\n")
-	for _, doc := range relevantData.SimilarDocuments {
-		contentBuilder.WriteString(doc.Content)
-		contentBuilder.WriteString("\n")
-	}
-
-	return ChatMessage{
-		Role:    "user",
-		Content: contentBuilder.String(),
-	}
-}
-
 func FormatMessages(contextMessage ChatMessage, messages []Message) []ChatMessage {
 	formattedMessages := make([]ChatMessage, 0, len(messages)+1)
 
@@ -74,30 +25,23 @@ func FormatMessages(contextMessage ChatMessage, messages []Message) []ChatMessag
 	return formattedMessages
 }
 
-func CreateCustomChatMessage(role string, content string) ChatMessage {
-	return ChatMessage{
-		Role:    role,
-		Content: content,
-	}
-}
-
-func QueryOllama(request LLMQueryRequest, chatMessages []ChatMessage) string {
+func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
 	fmt.Printf("Querying Ollama...\n")
 	url := "http://localhost:11434/api/chat"
 
 	jsonQuery, err := json.Marshal(OllamaRequest{
-		Model:    request.Model,
+		Model:    model,
 		Messages: chatMessages,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("error marshaling JSON: %w", err)
 	}
 
 	fmt.Printf("Request: %s\n", string(jsonQuery))
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonQuery))
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("error sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -129,31 +73,131 @@ func QueryOllama(request LLMQueryRequest, chatMessages []ChatMessage) string {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading response: %v", err)
+		return "", fmt.Errorf("error reading response: %w", err)
 	}
 
 	if fullResponse.Len() == 0 {
 		log.Print("No valid response found in the API output")
-		return ""
+		return "", nil
 	}
 
-	return fullResponse.String()
+	return fullResponse.String(), nil
 }
 
 func ProcessLLMQuery(request LLMQueryRequest) (string, error) {
+	// db, err := CreateDatabaseConnectionFromEnv()
+	// if err != nil {
+	// 	fmt.Errorf("Error connecting to database: %v", err)
+	// }
+	// defer db.Close()
+	// messageWithContext := FormatPromptWithContext(request, GetRelevantDataWithoutAnalysisFromAllTables(request))
+
+	// previousMessages, err := GetRecentMessages(db, request.ConversationID, request.SearchLimit)
+	// if err != nil {
+	// 	return "", err
+	// }
+	// messages := FormatMessages(messageWithContext, previousMessages)
+
+	// return QueryOllama(request.Model, messages)
+}
+
+func AgenticFlow(request LLMQueryRequest) (string, error) {
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
-		fmt.Errorf("Error connecting to database: %v", err)
+		fmt.Printf("Error connecting to database: %v", err)
 	}
 	defer db.Close()
-	messageWithContext := FormatPromptWithContext(request, GetRelevantDataWithoutAnalysisFromAllTables(request))
 
-	previousMessages, err := GetRecentMessages(db, request.ConversationID, request.SearchLimit)
+	decomposed_query_request, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(SubquestionInstruction)}, {Role: "user", Content: request.Input}})
 	if err != nil {
 		return "", err
 	}
-	messages := FormatMessages(messageWithContext, previousMessages)
+	decomposed_query, err := ParseSubQuestions(decomposed_query_request)
+	if err != nil {
+		return "", err
+	}
 
-	return QueryOllama(request, messages), nil
+	return AnswerSubQuestionsRecursively(request, decomposed_query, "")
+
+}
+
+
+
+func AnswerSubQuestionsRecursively(request LLMQueryRequest, sub_questions []string, previous_answer string) (string, error) {
+
+	if len(sub_questions) == 0 {
+		return previous_answer, nil
+	}
+
+	question := sub_questions[0]
+
+	data_source_request, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(DataSourceInstruction)}, {Role: "user", Content: question}})
+	if err != nil {
+		return previous_answer, err
+	}
+
+	data_sources, err := ParseDataSources(data_source_request)
+	if err != nil {
+		return previous_answer, err
+	}
+
+	data, err := SourceData(request.Model, data_sources, question)
+	if err != nil {
+		return previous_answer, err
+	}
+
+	answer, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+
+	if err != nil {
+		return previous_answer, err
+	}
+
+	hallucination_check, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(HallucinationDetectiveInstruction)}, {Role: "user", Content: "\n QUESTION: " + question + "\n ANSWER: " + answer}}) 
+
+	if err != nil {
+		return previous_answer, err
+	}
+
+	if hallucination_check == "YES" {
+		answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+		hallucination_check, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(HallucinationDetectiveInstruction)}, {Role: "user", Content: "\n QUESTION: " + question + "\n ANSWER: " + answer}}) 
+
+	}
+
+	if hallucination_check == "YES" {
+		answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+	}
+
+	correctness_check, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(CorrectnessDetectiveInstruction)}, {Role: "user", Content: "\n QUESTION: " + question + "\n ANSWER: " + answer}})
+
+	if err != nil {
+		return previous_answer, err
+	}
+
+	if correctness_check == "NO" {
+		// Let's try again but with the default search as a fall back
+		data, err = SourceData(request.Model, []string{"default"}, question)
+		answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+		if hallucination_check == "YES" {
+			answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+			hallucination_check, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(HallucinationDetectiveInstruction)}, {Role: "user", Content: "\n QUESTION: " + question + "\n ANSWER: " + answer}}) 
+	
+		}
+	
+		if hallucination_check == "YES" {
+			answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer + "\n" + data + "\n" + question}})
+		}
+	
+		correctness_check, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(CorrectnessDetectiveInstruction)}, {Role: "user", Content: "\n QUESTION: " + question + "\n ANSWER: " + answer}})
+	
+			
+	}
+
+	if correctness_check == "NO" {
+		//At this point we give up on sourcing data and move on to the next question
+		answer, err = QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: previous_answer +"\n" + question}})
+	}
+
+	return AnswerSubQuestionsRecursively(request , sub_questions[1:], answer)
 }
 

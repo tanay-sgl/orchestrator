@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 
@@ -14,21 +15,20 @@ import (
 )
 
 func CreateDatabaseConnectionFromEnv() (*pg.DB, error) {
-    db := pg.Connect(&pg.Options{
-        Addr:     os.Getenv("TIMESCALE_ADDRESS"),
-        User:     os.Getenv("TIMESCALE_USER"),
-        Password: os.Getenv("TIMESCALE_PASSWORD"),
-        Database: os.Getenv("TIMESCALE_DATABASE"),
-    })
+	db := pg.Connect(&pg.Options{
+		Addr:     os.Getenv("TIMESCALE_ADDRESS"),
+		User:     os.Getenv("TIMESCALE_USER"),
+		Password: os.Getenv("TIMESCALE_PASSWORD"),
+		Database: os.Getenv("TIMESCALE_DATABASE"),
+	})
 
-    err := db.Ping(context.Background())
-    if err != nil {
-        return nil, fmt.Errorf("failed to connect to database: %w", err)
-    }
+	err := db.Ping(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
 
-    return db, nil
+	return db, nil
 }
-
 
 func GetRowAsAString(db *pg.DB, request RowEmbeddingsRequest) (string, error) {
 	// Get the struct type for the table
@@ -210,4 +210,109 @@ func GetRecentMessages(db *pg.DB, conversationID int64, limit int) ([]Message, e
 		Limit(limit).
 		Select()
 	return messages, err
+}
+
+func GetRelevantDocuments(request LLMQueryRequest) ([]Document, error) {
+	requestEmbedding, err := CreateEmbedding(request.Model, request.Input)
+	if err != nil {
+		return nil, fmt.Errorf("error creating embedding: %w", err)
+	}
+
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		fmt.Errorf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
+
+	return GetSimilarDocuments(db, requestEmbedding, request.SearchLimit)
+}
+
+func SimilaritySearchAll(request LLMQueryRequest) RelevantData {
+	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		fmt.Errorf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
+
+	similarRows, err := GetAllSimilarRowsFromDB(db, TableNames, requestEmbedding, request.SearchLimit)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	similarDocumentContent, err := GetSimilarDocuments(db, requestEmbedding, request.SearchLimit)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return RelevantData{
+		SimilarRows:      similarRows,
+		SimilarDocuments: similarDocumentContent,
+	}
+}
+
+func SourceData(model string, data_sources []string, question string) (string, error) {
+	relevant_data := RelevantData{}
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return "", fmt.Errorf("error connecting to database: %w", err)
+	}
+	defer db.Close()
+
+	for _, data_source := range data_sources {
+		switch data_source {
+		case "documents":
+			similarDocuments, err := GetRelevantDocuments(LLMQueryRequest{
+				Model: model,
+				Input: question,
+			})
+			if err != nil {
+				log.Default().Println(err)
+			}
+
+			relevant_data.SimilarDocuments = similarDocuments
+		case "sql":
+			sql_request, err := QueryOllama(model, []ChatMessage{{Role: "user", Content: string(SQLInstruction)}, {Role: "user", Content: question}})
+			if err != nil {
+				log.Default().Println(err)
+			}
+
+			sanitized_sql_request, err := SanitizeAndParseSQLQuery(sql_request)
+			if err != nil {
+				log.Default().Println(err)
+			}
+			var result []map[string]interface{}
+			_, err = db.Query(&result, sanitized_sql_request)
+			if err != nil {
+				return "", fmt.Errorf("error executing SQL query: %w", err)
+			}
+
+			// Add the SQL result to the relevant_data
+			relevant_data.SimilarRows = map[string][]map[string]interface{}{
+				"sql_result": result,
+			}
+		case "default":
+			default_request := SimilaritySearchAll(LLMQueryRequest{
+				Model: model,
+				Input: question,
+			})
+
+			if default_request.SimilarDocuments != nil {
+				relevant_data.SimilarDocuments = append(relevant_data.SimilarDocuments, default_request.SimilarDocuments...)
+			}
+			for table, rows := range default_request.SimilarRows {
+				if relevant_data.SimilarRows == nil {
+					relevant_data.SimilarRows = make(map[string][]map[string]interface{})
+				}
+				relevant_data.SimilarRows[table] = append(relevant_data.SimilarRows[table], rows...)
+			}
+		case "NA":
+			return QueryOllama(model, []ChatMessage{{Role: "user", Content: question}})
+		}
+	}
+	return ParseRelevantData(relevant_data)
 }
