@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -24,6 +25,7 @@ func SetupRouter() *gin.Engine {
 	authorized.POST("generateRowEmbeddings", handleGenerateRowEmbeddings)
 	authorized.POST("generateDocumentEmbeddings", handleGenerateDocumentEmbeddings)
 	authorized.POST("llmQuery", handleLLMQuery)
+	authorized.POST("searchDocuments", searchDocuments)
 
 	return router
 }
@@ -77,6 +79,7 @@ func handleGenerateRowEmbeddings(c *gin.Context) {
 }
 
 func handleGenerateDocumentEmbeddings(c *gin.Context) {
+	fmt.Printf("handleGenerateDocumentEmbeddings\n")
 	user := c.MustGet(gin.AuthUserKey).(string)
 	if user != "foo" {
 		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
@@ -119,4 +122,26 @@ func handleLLMQuery(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "response": response})
+}
+
+func searchDocuments(c *gin.Context) {
+	user := c.MustGet(gin.AuthUserKey).(string)
+	if user != "foo" {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
+		return
+	}
+
+	var request LLMQueryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	documents, err := SourceData(request.Model, []string{"documents"}, request.Input, request.SearchLimit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "documents": documents})	
 }

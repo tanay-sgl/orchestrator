@@ -5,14 +5,20 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/ledongthuc/pdf"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/unidoc/unioffice/document"
 )
 
@@ -36,20 +42,27 @@ func IdentifyFileType(fileBytes []byte) (string, error) {
 
 	switch {
 	case strings.HasPrefix(mimeString, "application/pdf"):
+		fmt.Printf("\nDetected PDF file\n")
 		return ".pdf", nil
 	case strings.HasPrefix(mimeString, "text/plain"):
 		// Check if it looks like Markdown
 		if looksLikeMarkdown(fileBytes) {
+			fmt.Printf("\nDetected Markdown file\n")
 			return ".md", nil
 		}
+		fmt.Printf("\nDetected text file\n")
 		return ".txt", nil
 	case strings.HasPrefix(mimeString, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+		fmt.Printf("\nDetected Word file DOCX\n")
 		return ".docx", nil
 	case strings.HasPrefix(mimeString, "application/msword"):
+		fmt.Printf("\nDetected Word file DOC\n")
 		return ".doc", nil
 	case strings.HasPrefix(mimeString, "text/markdown"):
+		fmt.Printf("\nDetected Markdown file\n")
 		return ".md", nil
 	default:
+		fmt.Printf("\nUnknown or unsupported file type: %s\n", mimeString)
 		return "", errors.New("unknown or unsupported file type: " + mimeString)
 	}
 }
@@ -64,11 +77,119 @@ func looksLikeMarkdown(content []byte) bool {
 	}
 	return false
 }
+func writeToFile(filename string, content string) {
+	// Add timestamp to filename to avoid overwriting
+	timestamp := time.Now().Format("20060102_150405")
+	filename = fmt.Sprintf("%s_%s", timestamp, filename)
 
-func ExtractTextFromPDF(fileBytes []byte) (string, error) {
-	pdfReader, err := pdf.NewReader(bytes.NewReader(fileBytes), int64(len(fileBytes)))
+	err := os.WriteFile(filename, []byte(content), 0644)
 	if err != nil {
-		return "", fmt.Errorf("error opening PDF: %v", err)
+		log.Printf("Error writing to file %s: %v", filename, err)
+	} else {
+		log.Printf("Successfully wrote to file: %s", filename)
+	}
+}
+
+func ExtractTextFromPDF(rs io.ReadSeeker) (string, error) {
+	conf := model.NewDefaultConfiguration()
+
+	tempDir, err := os.MkdirTemp("", "pdf-extract-")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	err = api.ExtractContent(rs, tempDir, "extracted", nil, conf)
+	if err != nil {
+		return "", fmt.Errorf("error extracting content from PDF: %v", err)
+	}
+
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return "", fmt.Errorf("error reading temp directory: %v", err)
+	}
+
+	var extractedFile string
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "extracted") {
+			extractedFile = filepath.Join(tempDir, file.Name())
+			break
+		}
+	}
+
+	if extractedFile == "" {
+		return "", fmt.Errorf("no extracted file found in temp directory")
+	}
+
+	content, err := os.ReadFile(extractedFile)
+	if err != nil {
+		return "", fmt.Errorf("error reading extracted content from %s: %v", extractedFile, err)
+	}
+
+	extractedText := extractTextFromPDFContent(string(content))
+	cleanedText := removeNonPrintableCharacters(extractedText)
+	normalizedText := normalizeWhitespace(cleanedText)
+
+	return normalizedText, nil
+}
+
+// Helper function to get the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func extractTextFromPDFContent(content string) string {
+	// Regular expression to find text between angle brackets (which often contain hex-encoded text)
+	re := regexp.MustCompile(`<([^>]+)>`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	var text strings.Builder
+	for _, match := range matches {
+		if len(match) > 1 {
+			decodedText := decodeHexString(match[1])
+			text.WriteString(decodedText)
+			text.WriteString(" ")
+		}
+	}
+
+	return text.String()
+}
+
+func decodeHexString(hexString string) string {
+	var text strings.Builder
+	for i := 0; i < len(hexString); i += 2 {
+		if i+1 < len(hexString) {
+			charCode, _ := strconv.ParseUint(hexString[i:i+2], 16, 8)
+			if unicode.IsPrint(rune(charCode)) {
+				text.WriteRune(rune(charCode))
+			}
+		}
+	}
+	return text.String()
+}
+
+func extractTextFromPDFFile(filePath string) (string, error) {
+	// Open the PDF file
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("error opening PDF file: %v", err)
+	}
+	defer f.Close()
+
+	// Get file size
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("error getting file info: %v", err)
+	}
+	fileSize := fileInfo.Size()
+
+	// Create a new PDF reader
+	pdfReader, err := pdf.NewReader(f, fileSize)
+	if err != nil {
+		return "", fmt.Errorf("error creating PDF reader: %v", err)
 	}
 
 	var text strings.Builder
@@ -80,18 +201,12 @@ func ExtractTextFromPDF(fileBytes []byte) (string, error) {
 
 		pageText, err := page.GetPlainText(nil)
 		if err != nil {
-			// Log the error but continue with other pages
-			log.Printf("Error extracting text from page %d: %v", pageNum, err)
-			continue
+			return "", fmt.Errorf("error extracting text from page %d: %v", pageNum, err)
 		}
 		text.WriteString(pageText)
 	}
 
-	extractedText := text.String()
-	cleanedText := removeNonPrintableCharacters(IdentifyAndReplaceCommonProblematicCharacters(extractedText))
-	normalizedText := normalizeWhitespace(cleanedText)
-
-	return normalizedText, nil
+	return text.String(), nil
 }
 
 func ExtractTextFromDOCX(fileBytes []byte) (string, error) {
@@ -125,6 +240,7 @@ func ExtractTextFromDOCX(fileBytes []byte) (string, error) {
 }
 
 func SplitStringIntoStringArray(text string, chunkSize int) []string {
+	//fmt.Printf("SplitStringIntoStringArray\n")
 	var chunks []string
 	var currentChunk strings.Builder
 
@@ -146,6 +262,7 @@ func SplitStringIntoStringArray(text string, chunkSize int) []string {
 }
 
 func normalizeWhitespace(input string) string {
+	fmt.Printf("normalizeWhitespace\n")
 	// Replace multiple spaces with a single space
 	spaceNormalized := regexp.MustCompile(`\s+`).ReplaceAllString(input, " ")
 	// Ensure single newline between paragraphs
@@ -153,6 +270,7 @@ func normalizeWhitespace(input string) string {
 }
 
 func removeNonPrintableCharacters(input string) string {
+	//fmt.Printf("removeNonPrintableCharacters\n")
 	return strings.Map(func(r rune) rune {
 		if unicode.IsPrint(r) {
 			return r
@@ -162,6 +280,7 @@ func removeNonPrintableCharacters(input string) string {
 }
 
 func IdentifyAndReplaceCommonProblematicCharacters(input string) string {
+	//fmt.Printf("IdentifyAndReplaceCommonProblematicCharacters\n")
 	// Define a set of "safe" characters
 	safeSet := &unicode.RangeTable{
 		R16: []unicode.Range16{
@@ -201,7 +320,7 @@ func IdentifyAndReplaceCommonProblematicCharacters(input string) string {
 		}
 		return -1
 	}, cleaned)
-
+	//fmt.Printf("IdentifyAndReplaceCommonProblematicCharacters: %s\n", cleaned)
 	// Normalize remaining whitespace
 	re := regexp.MustCompile(`\s+`)
 	cleaned = re.ReplaceAllString(cleaned, " ")
@@ -300,6 +419,7 @@ func ParseDataSources(response string) ([]string, error) {
 }
 
 func SanitizeAndParseSQLQuery(response string) (string, error) {
+	//fmt.Printf(response)
 	// First, let's extract the SQL query from the response
 	sqlRegex := regexp.MustCompile(`(?i)SQL:\s*(.+)`)
 	matches := sqlRegex.FindStringSubmatch(response)
@@ -367,4 +487,29 @@ func ParseRelevantData(relevantData RelevantData) (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+func AnalyzeYesNoResponse(response string) bool {
+	// Search for "YES" or "NO" in the entire string
+	hasYes := strings.Contains(response, "YES")
+	hasNo := strings.Contains(response, "NO")
+
+	// Return true if either "YES" or "NO" is found
+	return hasYes || hasNo
+}
+
+func FormatSubQuestionAnswers(subQuestionAnswers []string) string {
+	var result strings.Builder
+
+	for i, entry := range subQuestionAnswers {
+		// Add a numbered header for each sub-question and answer pair
+		result.WriteString(fmt.Sprintf("%d. %s\n", i+1, entry))
+
+		// Add a separator between entries, except for the last one
+		if i < len(subQuestionAnswers)-1 {
+			result.WriteString("\n---\n\n")
+		}
+	}
+
+	return result.String()
 }

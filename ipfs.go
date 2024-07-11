@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,6 +47,7 @@ func GetCIDAsBytes(cid string) ([]byte, error) {
 }
 
 func GetFileChunksFromCIDAsStrings(cid string, chunkSize int) ([]string, error) {
+	//fmt.Printf("GetFileChunksFromCIDAsStrings\n")
 	// Get the file bytes using the provided function
 	fileBytes, err := GetCIDAsBytes(cid)
 	if err != nil {
@@ -62,7 +64,7 @@ func GetFileChunksFromCIDAsStrings(cid string, chunkSize int) ([]string, error) 
 
 	switch fileType {
 	case ".pdf":
-		text, err = ExtractTextFromPDF(fileBytes)
+		text, err = ExtractTextFromPDF(bytes.NewReader(fileBytes))
 	case ".txt", ".text":
 		text = ProcessText(string(fileBytes))
 	case ".doc", ".docx":

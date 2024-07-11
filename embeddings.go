@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -28,6 +27,7 @@ func CreateEmbedding(requestModel string, content string) (pgvector.Vector, erro
 }
 
 func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error {
+	fmt.Printf("ProcessDocumentEmbeddingsInChunks\n")
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return fmt.Errorf("error creating database connection: %w", err)
@@ -69,19 +69,19 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 func ProcessRowEmbeddings(request RowEmbeddingsRequest) {
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
-		fmt.Errorf("error creating database connection: %w", err)
+		fmt.Printf("Error connecting to database: %v", err)
 	}
 	defer db.Close()
 
 	row, err := GetRowAsAString(db, request)
 
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
 	}
 
 	embedding, err := CreateEmbedding(request.Model, row)
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
 	}
 	InsertRowEmbedding(db, request, embedding)
 

@@ -35,20 +35,15 @@ type ChatMessage struct {
 	Content string `json:"content"`
 }
 
-type OllamaAgent struct {
-	model        string
-	instructions map[string]string
-}
 
-// Define types for clarity
 type Instruction string
 type Model string
 
-// Instructions
+
 const DefaultInstruction Instruction = `Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema`
 
 const SQLInstruction Instruction = `You are an expert SQL query generator. Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema. Follow these guidelines:
-
+YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. Analyze the input query to understand the required data and operations.
 2. Identify the relevant tables from our schema.
 3. Construct a SQL query that accurately represents the input query.
@@ -80,7 +75,7 @@ FROM collection_dynamic
 ORDER BY total_volume DESC
 LIMIT 5;
 
-Respond in this exact format:
+Respond in this exact format DO NOT ANSWER WITH ANYTHING ELSE OTHER THAN THE SQL QUERY DO NOT MAKE ANY OTHER RESPONSES.:
 
 SQL: [Your SQL query here]
 
@@ -88,15 +83,15 @@ If unable to generate a query, respond with:
 ERROR
 `
 
-const SubquestionInstruction Instruction = `You are an analyzer agent. Your task is to analyze complex queries and decompose them into a set of simpler sub-questions. Follow these guidelines:
-
-1. Break down the main query into logical, sequential steps.
-2. Ensure each sub-question is simpler and more focused than the original query.
+const SubquestionInstruction Instruction = `You are a GameFI an analyzer agent. Your task is to analyze complex GameFIqueries and decompose them into a set of simpler sub-questions. Follow these guidelines:
+YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
+1. Break down the main query into SMALL AND CONCISE logical, sequential steps.
+2. Ensure each sub-question is simpler and more focused and SHORTER than the original query.
 3. Order the sub-questions in a logical flow that builds towards answering the main query.
-4. Provide 2 to 5 sub-questions, depending on the complexity of the original query.
+4. Provide 3 sub-questions, depending on the complexity of the original query.
 5. Make sure the sub-questions, when answered in order, will provide all necessary information to address the main query.
 
-Respond with your sub-questions numbered and in order.
+Respond with your sub-questions numbered and in order ALL SUBQUESTIONS MUST BE SHORTER AND SIGNIFICANTLY EASIER THAN THE ORIGINAL QUERY.
 
 Example:
 Query: "What was the impact of the 2008 financial crisis on the housing market in the United States, and how has it recovered since then?"
@@ -105,20 +100,15 @@ Sub-questions:
 1. What were the key events and causes of the 2008 financial crisis?
 2. How did the 2008 financial crisis specifically affect the US housing market?
 3. What were the immediate consequences for homeowners and potential buyers?
-4. What measures were taken by the government and financial institutions to address the housing market crisis?
-5. How have housing prices, homeownership rates, and mortgage practices changed since 2008?
 
-
-Answer in this exact format:
+Answer in this exact format; DO NOT ANSWER WITH ANYTHING ELSE;:
 SUB QUESTIONS:
 1. [Sub-question 1]
 2. [Sub-question 2]
-3. [Sub-question 3]
-4. [Sub-question 4]
-5. [Sub-question 5]`
+3. [Sub-question 3]`
 
-const DataSourceInstruction Instruction = `You are a data sourcing agent. Analyze the query and determine the most appropriate data source(s) to answer it. Consider these options:
-
+const DataSourceInstruction Instruction = `You are a GameFI data sourcing agent. Analyze the query and determine the most appropriate data source(s) to answer it. Consider these options:
+YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. "documents": Use for queries requiring detailed information from specific documents or context from multiple documents.
 2. "sql": Choose for queries involving structured data, statistics, or aggregations typically stored in databases.
 3. "default": Select for general queries that can be answered using simple similarity search across all available data.
@@ -134,32 +124,32 @@ Respond ONLY with one of the following formats:
 - A single source: "documents", "sql", "default", or "NA"
 - Multiple sources: e.g., "sql,documents" or "documents,default"
 
-Do not include any additional text or explanation in your response.`
+Do not include any additional text or explanation in your response. DO NOT ANSWER WITH ANYTHING ELSE.`
 
-const GameFIGeniusInstruction Instruction = `You are a GameFI expert. Analyze the given query and context, then answer these questions:
-
-1. Does the provided context contain enough relevant information to answer the query about GameFi?
-2. Is the query specifically about GameFi concepts, projects, or trends?
-
-Respond with ONLY ONE of these:
-YES - if the answer to both questions is yes.
-NO - if the answer to either question is no.`
+const GameFIGeniusInstruction Instruction = `You are a GameFI expert. 
+Analyze the given query and context then give one cohesive answer to the best of your ability succintly and with no additional explanation or comments. DO NOT ANSWER WITH ANYTHING ELSE. YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.`
 
 const HallucinationDetectiveInstruction Instruction = `You are a hallucination detective. Compare the given response to the original query and context. Determine:
-
+YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. Does every statement in the response directly correspond to information in the context?
 2. Is the response free from any claims or data not present in the context?
 
-Respond with ONLY ONE of these:
+Respond with ONLY ONE of these: DO NOT ANSWER WITH ANYTHING ELSE
 NO - if the answer to both questions is yes (no hallucination detected).
 YES - if the answer to either question is no (potential hallucination detected).`
 
-const CorrectnessDetectiveInstruction Instruction = `You are a correctness detective. Evaluate the given response against the original query and context. Determine:
-
+const CorrectnessDetectiveInstruction Instruction = `You are a correctness detective and a GameFI expert. Evaluate the given response against the original query and context. Determine:
+YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. Does the response directly and fully address the query?
 2. Is all information in the response factually correct according to the provided context?
 3. Is the reasoning in the response logically sound?
 
-Respond with ONLY ONE of these:
+Respond with ONLY ONE of these: DO NOT ANSWER WITH ANYTHING ELSE
 YES - if the answer to all three questions is yes.
 NO - if the answer to any question is no.`
+
+const SnythesizeInstruction Instruction = `You are a genius synthesizer and a GameFI expert. 
+Given a Query that has been decomposed into several sub queries and answers, synthesize the given text into one cohesive answer to the query.RESPOND IN THIS FORMAT:
+
+RESPONSE: [answer]
+`
