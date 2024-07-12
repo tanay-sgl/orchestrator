@@ -143,5 +143,5 @@ func searchDocuments(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "documents": documents})	
+	c.JSON(http.StatusOK, gin.H{"status": "success", "documents": documents})
 }

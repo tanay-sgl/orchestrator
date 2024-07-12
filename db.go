@@ -123,26 +123,16 @@ func InsertRowEmbedding(db *pg.DB, request RowEmbeddingsRequest, embedding pgvec
 }
 
 func constructSimilarDocumentsQuery(queryEmbedding pgvector.Vector, limit int) string {
-    embeddingStr := fmt.Sprintf("%v", queryEmbedding)
-    
-    query := fmt.Sprintf(`
+	embeddingStr := fmt.Sprintf("%v", queryEmbedding)
+
+	query := fmt.Sprintf(`
         SELECT collection_slug, content
         FROM documents
         ORDER BY embedding <=> '%s'::vector
         LIMIT %d
     `, embeddingStr, limit)
-    
-    return query
-}
 
-func GetSimilarDocuments(db *pg.DB, queryEmbedding pgvector.Vector, limit int) ([]Document, error) {
-    //fmt.Printf("GetSimilarDocuments\n")
-    var documents []Document
-    
-    query := constructSimilarDocumentsQuery(queryEmbedding, limit)
-    _, err := db.Query(&documents, query)
-
-    return documents, err
+	return query
 }
 
 // TODO handle no results gracefully
@@ -189,12 +179,22 @@ func GetSimilarRowsFromTable(db *pg.DB, tableName string, queryEmbedding pgvecto
 	return result, nil
 }
 
-func GetAllSimilarRowsFromDB(db *pg.DB, tables []string, queryEmbedding pgvector.Vector, limitPerTable int) (map[string][]map[string]interface{}, error) {
+func GetAllSimilarRowsFromDB(request LLMQueryRequest) (map[string][]map[string]interface{}, error) {
 	//fmt.Printf("GetAllSimilarRowsFromDB\n")
+	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
+	if err != nil {
+		//log.Fatal(err)
+	}
+
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+
+	}
+	defer db.Close()
 	results := make(map[string][]map[string]interface{})
 
-	for _, tableName := range tables {
-		rows, err := GetSimilarRowsFromTable(db, tableName, queryEmbedding, limitPerTable)
+	for _, tableName := range TableNames {
+		rows, err := GetSimilarRowsFromTable(db, tableName, requestEmbedding, request.SearchLimit)
 		if err != nil {
 			fmt.Printf("error searching table %s: %w", tableName, err)
 		}
@@ -228,27 +228,18 @@ func GetSimilaritySearchDocuments(request LLMQueryRequest) ([]Document, error) {
 	}
 	defer db.Close()
 
-	return GetSimilarDocuments(db, requestEmbedding, request.SearchLimit)
+	var documents []Document
+
+	query := constructSimilarDocumentsQuery(requestEmbedding, request.SearchLimit)
+	_, err = db.Query(&documents, query)
+
+	return documents, err
 }
 
 func GetSimilaritySearchAll(request LLMQueryRequest) (RelevantData, error) {
-	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
-	if err != nil {
-		//log.Fatal(err)
-	}
+	similarRows, err := GetAllSimilarRowsFromDB(request)
 
-	db, err := CreateDatabaseConnectionFromEnv()
-	if err != nil {
-		return RelevantData{}, fmt.Errorf("error connecting to database: %w", err)
-	}
-	defer db.Close()
-
-	similarRows, err := GetAllSimilarRowsFromDB(db, TableNames, requestEmbedding, request.SearchLimit)
-	if err != nil {
-		//log.Fatal(err)
-	}
-
-	similarDocumentContent, err := GetSimilarDocuments(db, requestEmbedding, request.SearchLimit)
+	similarDocumentContent, err := GetSimilaritySearchDocuments(request)
 	if err != nil {
 		//log.Fatal(err)
 	}
@@ -272,8 +263,8 @@ func SourceData(model string, data_sources []string, question string, search_lim
 		switch data_source {
 		case "documents":
 			similarDocuments, err := GetSimilaritySearchDocuments(LLMQueryRequest{
-				Model: model,
-				Input: question,
+				Model:       model,
+				Input:       question,
 				SearchLimit: search_limit,
 			})
 			if err != nil {
@@ -302,9 +293,10 @@ func SourceData(model string, data_sources []string, question string, search_lim
 				"sql_result": result,
 			}
 		case "default":
-			default_request, err := GetSimilaritySearchAll(LLMQueryRequest{
-				Model: model,
-				Input: question,
+
+			all_similar, err := GetSimilaritySearchAll(LLMQueryRequest{
+				Model:       model,
+				Input:       question,
 				SearchLimit: search_limit,
 			})
 
@@ -312,10 +304,10 @@ func SourceData(model string, data_sources []string, question string, search_lim
 				return "", fmt.Errorf("error getting default data: %w", err)
 			}
 
-			if default_request.SimilarDocuments != nil {
-				relevant_data.SimilarDocuments = append(relevant_data.SimilarDocuments, default_request.SimilarDocuments...)
+			if all_similar.SimilarDocuments != nil {
+				relevant_data.SimilarDocuments = append(relevant_data.SimilarDocuments, all_similar.SimilarDocuments...)
 			}
-			for table, rows := range default_request.SimilarRows {
+			for table, rows := range all_similar.SimilarRows {
 				if relevant_data.SimilarRows == nil {
 					relevant_data.SimilarRows = make(map[string][]map[string]interface{})
 				}
