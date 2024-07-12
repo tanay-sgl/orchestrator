@@ -37,4 +37,3 @@ type ChatMessage struct {
 
 type Instruction string
 type Model string
-

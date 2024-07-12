@@ -66,24 +66,17 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 	return nil
 }
 
-func ProcessRowEmbeddings(request RowEmbeddingsRequest) {
-	db, err := CreateDatabaseConnectionFromEnv()
+func ProcessRowEmbeddings(request RowEmbeddingsRequest) error {
+	row, err := GetRowAsAString(request)
+	
 	if err != nil {
-		fmt.Printf("Error connecting to database: %v", err)
-	}
-	defer db.Close()
-
-	row, err := GetRowAsAString(db, request)
-
-	if err != nil {
-		//log.Fatal(err)
+		return err
 	}
 
 	embedding, err := CreateEmbedding(request.Model, row)
 	if err != nil {
-		//log.Fatal(err)
+		return err
 	}
-	InsertRowEmbedding(db, request, embedding)
 
-	fmt.Println("Row embedding processed and updated successfully.")
+	return InsertRowEmbedding(request, embedding)
 }

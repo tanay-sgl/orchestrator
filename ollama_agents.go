@@ -2,7 +2,11 @@ package main
 
 const DefaultInstruction Instruction = `Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema`
 
-const SQLInstruction Instruction = `You are an expert SQL query generator. Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema. Follow these guidelines:
+const SQLInstruction Instruction = `You are an expert SQL query generator. 
+Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema. Follow these guidelines:
+
+YOU ARE PROVIDED WITH A METADATA ROW(s) OF THE COLLECTION TABLE; NOTICE THAT EVERY TABLE IS LINKED TO THE opensea_slug/collection_slug primary key USE IT TO SEARCH THROUGH THE DATABASE
+
 YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. Analyze the input query to understand the required data and operations.
 2. Identify the relevant tables from our schema.
@@ -72,7 +76,6 @@ YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. "documents": Use for queries requiring detailed information from specific documents or context from multiple documents.
 2. "sql": Choose for queries involving structured data, statistics, or aggregations typically stored in databases.
 3. "default": Select for general queries that can be answered using simple similarity search across all available data.
-4. "NA": Use when none of the above sources are suitable or when the query cannot be answered with available data.
 
 Guidelines:
 - You may suggest multiple sources if the query requires it.

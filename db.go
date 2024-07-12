@@ -29,7 +29,7 @@ func CreateDatabaseConnectionFromEnv() (*pg.DB, error) {
 	return db, nil
 }
 
-func GetRowAsAString(db *pg.DB, request RowEmbeddingsRequest) (string, error) {
+func GetRowAsAString(request RowEmbeddingsRequest) (string, error) {
 	// Get the struct type for the table
 	structType := GetTableStruct(request.Table)
 	if structType == nil {
@@ -45,6 +45,12 @@ func GetRowAsAString(db *pg.DB, request RowEmbeddingsRequest) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal primary keys: %v", err)
 	}
+	var db *pg.DB
+	db, err= CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
 
 	// Create a query
 	query := db.Model(row).ExcludeColumn("embedding")
@@ -88,7 +94,7 @@ func InsertDocumentEmbedding(db *pg.DB, request DocumentEmbeddingsRequest, conte
 	return nil
 }
 
-func InsertRowEmbedding(db *pg.DB, request RowEmbeddingsRequest, embedding pgvector.Vector) error {
+func InsertRowEmbedding(request RowEmbeddingsRequest, embedding pgvector.Vector) error {
 	// Get the struct type for the table
 	structType := GetTableStruct(request.Table)
 	if structType == nil {
@@ -105,6 +111,12 @@ func InsertRowEmbedding(db *pg.DB, request RowEmbeddingsRequest, embedding pgvec
 		return fmt.Errorf("failed to unmarshal primary keys: %v", err)
 	}
 
+	var db *pg.DB
+	db, err= CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 	// Create a query
 	query := db.Model(row).Set("embedding = ?", embedding)
 
@@ -136,11 +148,16 @@ func constructSimilarDocumentsQuery(queryEmbedding pgvector.Vector, limit int) s
 }
 
 // TODO handle no results gracefully
-func GetSimilarRowsFromTable(db *pg.DB, tableName string, queryEmbedding pgvector.Vector, limit int) ([]map[string]interface{}, error) {
+func GetSimilarRowsFromTable( tableName string, queryEmbedding pgvector.Vector, limit int) ([]map[string]interface{}, error) {
 	//fmt.Printf("GetSimilarRowsFromTable: %s\n", tableName)
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+
+	}
+	defer db.Close()
 
 	var rows []json.RawMessage
-	_, err := db.Query(&rows, fmt.Sprintf(`
+	_, err = db.Query(&rows, fmt.Sprintf(`
         SELECT jsonb_object_agg(
             key,
             CASE 
@@ -185,16 +202,11 @@ func GetAllSimilarRowsFromDB(request LLMQueryRequest) (map[string][]map[string]i
 	if err != nil {
 		//log.Fatal(err)
 	}
-
-	db, err := CreateDatabaseConnectionFromEnv()
-	if err != nil {
-
-	}
-	defer db.Close()
+	
 	results := make(map[string][]map[string]interface{})
 
 	for _, tableName := range TableNames {
-		rows, err := GetSimilarRowsFromTable(db, tableName, requestEmbedding, request.SearchLimit)
+		rows, err := GetSimilarRowsFromTable(tableName, requestEmbedding, request.SearchLimit)
 		if err != nil {
 			fmt.Printf("error searching table %s: %w", tableName, err)
 		}
@@ -268,12 +280,27 @@ func SourceData(model string, data_sources []string, question string, search_lim
 				SearchLimit: search_limit,
 			})
 			if err != nil {
-				//log.Default().Println(err)
+				continue
 			}
 			//fmt.Printf("similarDocuments: %v\n", similarDocuments)
 			relevant_data.SimilarDocuments = similarDocuments
 		case "sql":
-			sql_request, err := QueryOllama(model, []ChatMessage{{Role: "user", Content: string(SQLInstruction)}, {Role: "user", Content: question}})
+			fmt.Printf("SQL MODE")
+			//Identify collection_slug(s)
+			requestEmbedding, err := CreateEmbedding(model, question)
+			if err != nil {
+				//log.Fatal(err)
+			}
+
+			collection_string ,err := GetSimilarRowsFromTable("collection", requestEmbedding, search_limit)	
+			if err != nil {
+				//log.Default().Println(err)
+			}
+
+			sql_request, err := QueryOllama(model, []ChatMessage{
+				{Role: "user", Content: string(SQLInstruction)},
+				{Role: "user", Content: "METADATA:\n" + collection_string[0]["metadata"].(string) + "\nQUERY:\n"}, 
+				{Role: "user", Content: question}})
 			if err != nil {
 				//log.Default().Println(err)
 			}
@@ -282,6 +309,7 @@ func SourceData(model string, data_sources []string, question string, search_lim
 			if err != nil {
 				//log.Default().Println(err)
 			}
+			fmt.Println("Sanitized SQL instruction: " + sanitized_sql_request)
 			var result []map[string]interface{}
 			_, err = db.Query(&result, sanitized_sql_request)
 			if err != nil {
