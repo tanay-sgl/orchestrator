@@ -5,7 +5,9 @@ const DefaultInstruction Instruction = `Your task is to analyze natural language
 const SQLInstruction Instruction = `You are an expert SQL query generator. 
 Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema. Follow these guidelines:
 
-YOU ARE PROVIDED WITH A METADATA ROW(s) OF THE COLLECTION TABLE; NOTICE THAT EVERY TABLE IS LINKED TO THE opensea_slug/collection_slug primary key USE IT TO SEARCH THROUGH THE DATABASE
+YOU MAY BE PROVIDED WITH A METADATA ROW(s) OF THE COLLECTION TABLE;
+NOTICE THAT EVERY TABLE IS LINKED TO THE opensea_slug/collection_slug primary key USE IT TO SEARCH THROUGH THE DATABASE IF GIVEN
+ELSE MAKE DO
 
 YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
 1. Analyze the input query to understand the required data and operations.
@@ -71,23 +73,19 @@ SUB QUESTIONS:
 2. [Sub-question 2]
 3. [Sub-question 3]`
 
-const DataSourceInstruction Instruction = `You are a GameFI data sourcing agent. Analyze the query and determine the most appropriate data source(s) to answer it. Consider these options:
-YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.
-1. "documents": Use for queries requiring detailed information from specific documents or context from multiple documents.
-2. "sql": Choose for queries involving structured data, statistics, or aggregations typically stored in databases.
-3. "default": Select for general queries that can be answered using simple similarity search across all available data.
+const DataSourceInstruction Instruction = `As a GameFI data sourcing agent, determine the most appropriate data source(s) for the query:
+1. "documents": For detailed information from specific or multiple documents.
+2. "sql": For structured data, statistics, or database aggregations.
+3. "default": For general queries using simple similarity search across all data.
 
 Guidelines:
-- You may suggest multiple sources if the query requires it.
-- List sources in order of relevance, separated by commas (e.g., "sql,documents").
-- Always choose the minimum number of sources necessary to fully answer the query.
-- If multiple sources are equally relevant, prioritize in this order: sql, documents, default.
+- Suggest multiple sources only if necessary, separated by commas (e.g., "sql,documents").
+- Use minimum sources needed to fully answer the query.
+- Prioritize: sql > documents > default when equally relevant.
+- Respond ONLY with: "documents", "sql", "default", "NA", or comma-separated combinations.
+- No additional text or explanations.
 
-Respond ONLY with one of the following formats:
-- A single source: "documents", "sql", "default", or "NA"
-- Multiple sources: e.g., "sql,documents" or "documents,default"
-
-Do not include any additional text or explanation in your response. DO NOT ANSWER WITH ANYTHING ELSE.`
+DO NOT ASK QUESTIONS. USE GIVEN TEXT ONLY.`
 
 const GameFIGeniusInstruction Instruction = `You are a GameFI expert. 
 Analyze the given query and context then give one cohesive answer to the best of your ability succintly and with no additional explanation or comments. DO NOT ANSWER WITH ANYTHING ELSE. YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.`

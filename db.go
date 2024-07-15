@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 
 	"time"
 
@@ -29,6 +30,46 @@ func CreateDatabaseConnectionFromEnv() (*pg.DB, error) {
 	return db, nil
 }
 
+func createPostgresDSN() string {
+    return fmt.Sprintf("postgres://%s:%s@%s/%s",
+        os.Getenv("TIMESCALE_USER"),
+        os.Getenv("TIMESCALE_PASSWORD"),
+        os.Getenv("TIMESCALE_ADDRESS"),
+        os.Getenv("TIMESCALE_DATABASE"))
+}
+
+func GetTableSchemaAsString() (string, error) {
+
+	db, err := CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+    var tables []struct {
+        TableName string
+        Columns   string
+    }
+
+    _, err = db.Query(&tables, `
+        SELECT table_name, 
+               string_agg(column_name || ' ' || data_type, ', ' ORDER BY ordinal_position) AS columns
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        GROUP BY table_name
+        ORDER BY table_name
+    `)
+    if err != nil {
+        return "", err
+    }
+
+    var schema strings.Builder
+    for _, table := range tables {
+        schema.WriteString(fmt.Sprintf("%s: %s\n", table.TableName, table.Columns))
+    }
+    return schema.String(), nil
+}
+
 func GetRowAsAString(request RowEmbeddingsRequest) (string, error) {
 	// Get the struct type for the table
 	structType := GetTableStruct(request.Table)
@@ -46,7 +87,7 @@ func GetRowAsAString(request RowEmbeddingsRequest) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal primary keys: %v", err)
 	}
 	var db *pg.DB
-	db, err= CreateDatabaseConnectionFromEnv()
+	db, err = CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +153,7 @@ func InsertRowEmbedding(request RowEmbeddingsRequest, embedding pgvector.Vector)
 	}
 
 	var db *pg.DB
-	db, err= CreateDatabaseConnectionFromEnv()
+	db, err = CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return err
 	}
@@ -148,7 +189,7 @@ func constructSimilarDocumentsQuery(queryEmbedding pgvector.Vector, limit int) s
 }
 
 // TODO handle no results gracefully
-func GetSimilarRowsFromTable( tableName string, queryEmbedding pgvector.Vector, limit int) ([]map[string]interface{}, error) {
+func GetSimilarRowsFromTable(tableName string, queryEmbedding pgvector.Vector, limit int) ([]map[string]interface{}, error) {
 	//fmt.Printf("GetSimilarRowsFromTable: %s\n", tableName)
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
@@ -202,7 +243,7 @@ func GetAllSimilarRowsFromDB(request LLMQueryRequest) (map[string][]map[string]i
 	if err != nil {
 		//log.Fatal(err)
 	}
-	
+
 	results := make(map[string][]map[string]interface{})
 
 	for _, tableName := range TableNames {
@@ -292,14 +333,20 @@ func SourceData(model string, data_sources []string, question string, search_lim
 				//log.Fatal(err)
 			}
 
-			collection_string ,err := GetSimilarRowsFromTable("collection", requestEmbedding, search_limit)	
+			collection_string, err := GetSimilarRowsFromTable("collection", requestEmbedding, search_limit)
 			if err != nil {
 				//log.Default().Println(err)
 			}
 
+			// Convert the result to a JSON string
+			resultRow, err := json.Marshal(collection_string)
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal result: %v", err)
+			}
+
 			sql_request, err := QueryOllama(model, []ChatMessage{
 				{Role: "user", Content: string(SQLInstruction)},
-				{Role: "user", Content: "METADATA:\n" + collection_string[0]["metadata"].(string) + "\nQUERY:\n"}, 
+				{Role: "user", Content: "METADATA:\n" + string(resultRow) + "\nQUERY:\n"},
 				{Role: "user", Content: question}})
 			if err != nil {
 				//log.Default().Println(err)

@@ -372,7 +372,7 @@ func ParseSubQuestions(response string) ([]string, error) {
 
 	// Check if we found any sub-questions
 	if len(subQuestions) == 0 {
-		return nil, fmt.Errorf("no sub-questions found in the response")
+		return []string{}, nil
 	}
 
 	return subQuestions, nil

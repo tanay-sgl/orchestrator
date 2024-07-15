@@ -68,7 +68,7 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 
 func ProcessRowEmbeddings(request RowEmbeddingsRequest) error {
 	row, err := GetRowAsAString(request)
-	
+
 	if err != nil {
 		return err
 	}

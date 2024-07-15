@@ -12,8 +12,12 @@ func AgenticFlow(request LLMQueryRequest) (string, error) {
 		return "", err
 	}
 	decomposed_query, err := ParseSubQuestions(decomposed_query_request)
-	if err != nil {
+	if err != nil{
 		return "", err
+	}
+
+	if len(decomposed_query) == 0 {
+		decomposed_query = []string{request.Input}
 	}
 
 	var subQuestionAnswers []string
@@ -52,6 +56,11 @@ func AnswerSubQuestion(request LLMQueryRequest, question string) (string, error)
 	if err != nil {
 		return "", err
 	}
+
+	if len(data_sources) == 1 && data_sources[0] == "sql" {
+		return sqlFlow(request, question)
+	}
+
 	data, err := SourceData(request.Model, data_sources, question, request.SearchLimit)
 	if err != nil {
 		return "", err
@@ -93,4 +102,14 @@ func AnswerSubQuestion(request LLMQueryRequest, question string) (string, error)
 	}
 
 	return answer, nil
+}
+
+func sqlFlow(request LLMQueryRequest, question string) (string, error) {
+	data, err := SourceData(request.Model, []string{"sql"}, question, request.SearchLimit)
+
+	if err != nil {
+		return "", err
+	}
+
+	return QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(GameFIGeniusInstruction)}, {Role: "user", Content: "DATA:\n" + data + "QUERY:\n" + question}})
 }

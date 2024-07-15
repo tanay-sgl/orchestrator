@@ -2,7 +2,7 @@ package main
 
 import "encoding/json"
 
-// Document Embeddings are sent to vector database; response unnecessary
+// Document Embeddings are sent to vector database
 type DocumentEmbeddingsRequest struct {
 	CID            string `json:"cid"`
 	CollectionSlug string `json:"collection_slug"`

@@ -11,7 +11,6 @@ import (
 )
 
 func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
-	//fmt.Printf("Querying Ollama...\n")
 	url := "http://localhost:11434/api/chat"
 
 	jsonQuery, err := json.Marshal(OllamaRequest{
@@ -21,8 +20,6 @@ func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error marshaling JSON: %w", err)
 	}
-
-	//fmt.Printf("Request: %s\n", string(jsonQuery))
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonQuery))
 	if err != nil {
@@ -48,12 +45,10 @@ func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
 
 		if ollamaResponse.Message.Content != "" {
 			fullResponse.WriteString(ollamaResponse.Message.Content)
-			//fmt.Print(ollamaResponse.Message.Content) // Print each chunk as it's received
-		}
+			}
 
 		if ollamaResponse.Done {
-			//fmt.Printf("\nResponse completed. Total duration: %d ns\n", ollamaResponse.TotalDuration)
-			break // Exit the loop when we receive the "done" signal
+			break 
 		}
 	}
 
