@@ -1,4 +1,4 @@
-package main
+package models
 
 import "encoding/json"
 
@@ -24,7 +24,4 @@ type LLMQueryRequest struct {
 	ConversationID int64  `json:"conversation_id,omitempty"`
 }
 
-type LLMQueryResponse struct {
-	Result       string
-	RelevantData RelevantData
-}
+

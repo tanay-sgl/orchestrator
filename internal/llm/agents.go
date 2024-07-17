@@ -1,4 +1,4 @@
-package main
+package llm
 
 const DefaultInstruction Instruction = `Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema`
 

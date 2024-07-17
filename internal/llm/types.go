@@ -1,4 +1,4 @@
-package main
+package llm
 
 type RelevantData struct {
 	SimilarRows      map[string][]map[string]interface{}
