@@ -1,8 +1,11 @@
-package embedding
+package llm
 
 import (
 	"context"
 	"fmt"
+	"orchestrator/internal/database"
+	"orchestrator/internal/fileprocessing"
+	"orchestrator/internal/models"
 
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -26,14 +29,14 @@ func CreateEmbedding(requestModel string, content string) (pgvector.Vector, erro
 	return pgvector.NewVector(oneDimensionalEmbedding), nil
 }
 
-func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error {
+func ProcessDocumentEmbeddingsInChunks(request models.DocumentEmbeddingsRequest) error {
 	fmt.Printf("ProcessDocumentEmbeddingsInChunks\n")
-	db, err := CreateDatabaseConnectionFromEnv()
+	db, err := database.CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return fmt.Errorf("error creating database connection: %w", err)
 	}
 	defer db.Close()
-	content, err := GetFileChunksFromCIDAsStrings(request.CID, 1000)
+	content, err := fileprocessing.GetFileChunksFromCIDAsStrings(request.CID, 1000)
 	fmt.Printf("Content: %v\n", content)
 	if err != nil {
 		return fmt.Errorf("error getting content for CID: %w", err)
@@ -53,7 +56,7 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 			continue
 		}
 
-		err = InsertDocumentEmbedding(db, request, chunk, embedding)
+		err = database.InsertDocumentEmbedding(db, request, chunk, embedding)
 		if err != nil {
 			fmt.Printf("Error inserting document embedding for chunk %d: %v\n", i, err)
 			continue
@@ -66,8 +69,8 @@ func ProcessDocumentEmbeddingsInChunks(request DocumentEmbeddingsRequest) error 
 	return nil
 }
 
-func ProcessRowEmbeddings(request RowEmbeddingsRequest) error {
-	row, err := GetRowAsAString(request)
+func ProcessRowEmbeddings(request models.RowEmbeddingsRequest) error {
+	row, err := database.GetRowAsAString(request)
 
 	if err != nil {
 		return err
@@ -78,5 +81,5 @@ func ProcessRowEmbeddings(request RowEmbeddingsRequest) error {
 		return err
 	}
 
-	return InsertRowEmbedding(request, embedding)
+	return database.InsertRowEmbedding(request, embedding)
 }

@@ -2,10 +2,11 @@ package llm
 
 import (
 	"fmt"
+	"orchestrator/internal/models"
 	"sync"
 )
 
-func AgenticFlow(request LLMQueryRequest) (string, error) {
+func AgenticFlow(request models.LLMQueryRequest) (string, error) {
 
 	decomposed_query_request, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(SubquestionInstruction)}, {Role: "user", Content: request.Input}})
 	if err != nil {
@@ -47,7 +48,7 @@ func AgenticFlow(request LLMQueryRequest) (string, error) {
 	return FormatSubQuestionAnswers(subQuestionAnswers), nil
 }
 
-func AnswerSubQuestion(request LLMQueryRequest, question string) (string, error) {
+func AnswerSubQuestion(request models.LLMQueryRequest, question string) (string, error) {
 	data_source_request, err := QueryOllama(request.Model, []ChatMessage{{Role: "user", Content: string(DataSourceInstruction)}, {Role: "user", Content: "QUERY TO ANALYZE: \n" + question}})
 	if err != nil {
 		return "", err
@@ -104,7 +105,7 @@ func AnswerSubQuestion(request LLMQueryRequest, question string) (string, error)
 	return answer, nil
 }
 
-func sqlFlow(request LLMQueryRequest, question string) (string, error) {
+func sqlFlow(request models.LLMQueryRequest, question string) (string, error) {
 	data, err := SourceData(request.Model, []string{"sql"}, question, request.SearchLimit)
 
 	if err != nil {

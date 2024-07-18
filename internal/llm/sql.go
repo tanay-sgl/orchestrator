@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"fmt"
+	"orchestrator/internal/database"
+	"orchestrator/internal/models"
 
 	"github.com/tmc/langchaingo/chains"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -11,13 +13,13 @@ import (
 )
 
 
-func QueryUserRequestAsSQL(request LLMQueryRequest) (string, error) {
+func QueryUserRequestAsSQL(request models.LLMQueryRequest) (string, error) {
 	model, err := ollama.New(ollama.WithModel(request.Model))
 	if err != nil {
 		return "", err
 	}
 
-	db, err := sqldatabase.NewSQLDatabaseWithDSN("postgres", createPostgresDSN(), nil)
+	db, err := sqldatabase.NewSQLDatabaseWithDSN("postgres", database.CreatePostgresDSN(), nil)
     if err != nil {
         return "", fmt.Errorf("error connecting to database: %w", err)
     }

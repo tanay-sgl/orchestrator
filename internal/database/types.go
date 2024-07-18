@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type RelevantData struct {
+	SimilarRows      map[string][]map[string]interface{}
+	SimilarDocuments []Document
+}
+
 func GetTableStruct(tableName string) reflect.Type {
 	tableMap := map[string]reflect.Type{
 		"collection":         reflect.TypeOf(Collection{}),

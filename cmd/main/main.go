@@ -1,6 +1,8 @@
 package main
 
+import "orchestrator/internal/api"
+
 func main() {
-	r := SetupRouter()
+	r := api.SetupRouter()
 	r.Run(":8080")
 }

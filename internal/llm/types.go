@@ -1,10 +1,5 @@
 package llm
 
-type RelevantData struct {
-	SimilarRows      map[string][]map[string]interface{}
-	SimilarDocuments []Document
-}
-
 // Ollama HTTP request format
 type OllamaRequest struct {
 	Model    string        `json:"model"`
