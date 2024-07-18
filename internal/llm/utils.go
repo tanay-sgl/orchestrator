@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"orchestrator/internal/database"
-	"orchestrator/internal/models"
 	"regexp"
 	"strings"
 )
@@ -160,151 +159,89 @@ func SanitizeAndParseSQLQuery(response string) (string, error) {
 
 	return query, nil
 } 
-
 func SourceData(model string, data_sources []string, question string, search_limit int) (string, error) {
-	//fmt.Printf("QUESTON: %s\n", question)
-	relevant_data := database.RelevantData{}
-	db, err := database.CreateDatabaseConnectionFromEnv()
-	if err != nil {
-		return "", fmt.Errorf("error connecting to database: %w", err)
-	}
-	defer db.Close()
+    relevant_data := database.RelevantData{}
+    db, err := database.CreateDatabaseConnectionFromEnv()
+    if err != nil {
+        return "", fmt.Errorf("error connecting to database: %w", err)
+    }
+    defer db.Close()
 
-	for _, data_source := range data_sources {
-		switch data_source {
-		case "documents":
-			similarDocuments, err := GetSimilaritySearchDocuments(models.LLMQueryRequest{
-				Model:       model,
-				Input:       question,
-				SearchLimit: search_limit,
-			})
-			if err != nil {
-				continue
-			}
-			//fmt.Printf("similarDocuments: %v\n", similarDocuments)
-			relevant_data.SimilarDocuments = similarDocuments
-		case "sql":
-			fmt.Printf("SQL MODE")
-			//Identify collection_slug(s)
-			requestEmbedding, err := CreateEmbedding(model, question)
-			if err != nil {
-				//log.Fatal(err)
-			}
+    for _, data_source := range data_sources {
+        switch data_source {
+        case "documents":
+            embedding, err := CreateEmbedding(model, question)
+            if err != nil {
+                continue
+            }
+            similarDocuments, err := database.GetSimilaritySearchDocuments(db, embedding, search_limit)
+            if err != nil {
+                continue
+            }
+            relevant_data.SimilarDocuments = similarDocuments
 
-			collection_string, err := database.GetSimilarRowsFromTable("collection", requestEmbedding, search_limit)
-			if err != nil {
-				//log.Default().Println(err)
-			}
+        case "sql":
+            requestEmbedding, err := CreateEmbedding(model, question)
+            if err != nil {
+                continue
+            }
 
-			// Convert the result to a JSON string
-			resultRow, err := json.Marshal(collection_string)
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal result: %v", err)
-			}
+            collection_string, err := database.GetSimilarRowsFromTable("collection", requestEmbedding, search_limit)
+            if err != nil {
+                continue
+            }
 
-			sql_request, err := QueryOllama(model, []ChatMessage{
-				{Role: "user", Content: string(SQLInstruction)},
-				{Role: "user", Content: "METADATA:\n" + string(resultRow) + "\nQUERY:\n"},
-				{Role: "user", Content: question}})
-			if err != nil {
-				//log.Default().Println(err)
-			}
+            resultRow, err := json.Marshal(collection_string)
+            if err != nil {
+                return "", fmt.Errorf("failed to marshal result: %v", err)
+            }
 
-			sanitized_sql_request, err := SanitizeAndParseSQLQuery(sql_request)
-			if err != nil {
-				//log.Default().Println(err)
-			}
-			fmt.Println("Sanitized SQL instruction: " + sanitized_sql_request)
-			var result []map[string]interface{}
-			_, err = db.Query(&result, sanitized_sql_request)
-			if err != nil {
-				return "", fmt.Errorf("error executing SQL query: %w", err)
-			}
+            sql_request, err := QueryOllama(model, []ChatMessage{
+                {Role: "user", Content: string(SQLInstruction)},
+                {Role: "user", Content: "METADATA:\n" + string(resultRow) + "\nQUERY:\n"},
+                {Role: "user", Content: question},
+            })
+            if err != nil {
+                continue
+            }
 
-			// Add the SQL result to the relevant_data
-			relevant_data.SimilarRows = map[string][]map[string]interface{}{
-				"sql_result": result,
-			}
-		case "default":
+            sanitized_sql_request, err := SanitizeAndParseSQLQuery(sql_request)
+            if err != nil {
+                continue
+            }
 
-			all_similar, err := GetSimilaritySearchAll(models.LLMQueryRequest{
-				Model:       model,
-				Input:       question,
-				SearchLimit: search_limit,
-			})
+            result, err := database.ExecuteSQLQuery(db, sanitized_sql_request)
+            if err != nil {
+                return "", fmt.Errorf("error executing SQL query: %w", err)
+            }
 
-			if err != nil {
-				return "", fmt.Errorf("error getting default data: %w", err)
-			}
+            relevant_data.SimilarRows = map[string][]map[string]interface{}{
+                "sql_result": result,
+            }
 
-			if all_similar.SimilarDocuments != nil {
-				relevant_data.SimilarDocuments = append(relevant_data.SimilarDocuments, all_similar.SimilarDocuments...)
-			}
-			for table, rows := range all_similar.SimilarRows {
-				if relevant_data.SimilarRows == nil {
-					relevant_data.SimilarRows = make(map[string][]map[string]interface{})
-				}
-				relevant_data.SimilarRows[table] = append(relevant_data.SimilarRows[table], rows...)
-			}
-		case "NA":
-			return QueryOllama(model, []ChatMessage{{Role: "user", Content: question}})
-		}
-	}
-	return ParseRelevantData(relevant_data)
-}
+        case "default":
+            embedding, err := CreateEmbedding(model, question)
+            if err != nil {
+                return "", fmt.Errorf("error creating embedding: %w", err)
+            }
 
+            allSimilarRows, err := database.GetAllSimilarRowsFromDB(db, embedding, search_limit)
+            if err != nil {
+                return "", fmt.Errorf("error getting default data: %w", err)
+            }
 
-func GetSimilaritySearchDocuments(request models.LLMQueryRequest) ([]database.Document, error) {
-	//fmt.Printf("Creating Embedding for: " + request.Input + "\n")
-	requestEmbedding, err := CreateEmbedding(request.Model, request.Input)
-	if err != nil {
-		return nil, fmt.Errorf("error creating embedding: %w", err)
-	}
+            similarDocuments, err := database.GetSimilaritySearchDocuments(db, embedding, search_limit)
+            if err != nil {
+                return "", fmt.Errorf("error getting similar documents: %w", err)
+            }
 
-	db, err := database.CreateDatabaseConnectionFromEnv()
-	if err != nil {
-		return nil, fmt.Errorf("error connecting to database: %w", err)
-	}
-	defer db.Close()
+            relevant_data.SimilarRows = allSimilarRows
+            relevant_data.SimilarDocuments = similarDocuments
 
-	var documents []database.Document
+        case "NA":
+            return QueryOllama(model, []ChatMessage{{Role: "user", Content: question}})
+        }
+    }
 
-	query := database.ConstructSimilarDocumentsQuery(requestEmbedding, request.SearchLimit)
-	_, err = db.Query(&documents, query)
-
-	return documents, err
-}
-
-func GetAllSimilarRowsFromDB(request models.LLMQueryRequest) (map[string][]map[string]interface{}, error) {
-	//fmt.Printf("GetAllSimilarRowsFromDB\n")
-	requestEmbedding, err := CreateEmbedding("llama3", request.Input)
-	if err != nil {
-		//log.Fatal(err)
-	}
-
-	results := make(map[string][]map[string]interface{})
-
-	for _, tableName := range database.TableNames {
-		rows, err := database.GetSimilarRowsFromTable(tableName, requestEmbedding, request.SearchLimit)
-		if err != nil {
-			fmt.Printf("error searching table %s: %w", tableName, err)
-		}
-		results[tableName] = rows
-	}
-
-	return results, nil
-}
-
-func GetSimilaritySearchAll(request models.LLMQueryRequest) (database.RelevantData, error) {
-	similarRows, err := GetAllSimilarRowsFromDB(request)
-
-	similarDocumentContent, err := GetSimilaritySearchDocuments(request)
-	if err != nil {
-		//log.Fatal(err)
-	}
-
-	return database.RelevantData{
-		SimilarRows:      similarRows,
-		SimilarDocuments: similarDocumentContent,
-	}, nil
+    return ParseRelevantData(relevant_data)
 }
