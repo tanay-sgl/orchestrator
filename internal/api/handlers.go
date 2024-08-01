@@ -10,11 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 func handlePing(c *gin.Context) {
 	c.String(http.StatusOK, "pong! orchestrator is at your command")
 }
-//TODO
+
 func handleUserProfile(db map[string]string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := c.Param("name")
@@ -83,56 +82,55 @@ func handleGenerateDocumentEmbeddings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Processing started"})
 }
 
-
 func handleLLMSimpleQuery(c *gin.Context) {
-    var request models.LLMSimpleQueryRequest
-    if err := c.ShouldBindJSON(&request); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	var request models.LLMSimpleQueryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    response, err := llm.ProcessLLMSimpleQuery(request)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+	response, err := llm.ProcessLLMSimpleQuery(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"response": response})
+	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
 func handleLLMRAGQuery(c *gin.Context) {
-    var request models.LLMRAGQueryRequest
-    if err := c.ShouldBindJSON(&request); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	var request models.LLMRAGQueryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    response, err := llm.ProcessLLMRAGQuery(request)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+	response, err := llm.ProcessLLMRAGQuery(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"response": response})
+	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
 func handleLLMSQLQuery(c *gin.Context) {
-    var request models.LLMSQLQueryRequest
-    if err := c.ShouldBindJSON(&request); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	var request models.LLMSQLQueryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// input := map[string]any{
 	// 	"query":             request.Input,
 	// 	"table_names_to_use": []string{"collection"},
 	// }
 
-    response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+	response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"response": response})
+	c.JSON(http.StatusOK, gin.H{"response": response})
 }

@@ -11,22 +11,20 @@ import (
 	_ "github.com/tmc/langchaingo/tools/sqldatabase/postgresql"
 )
 
-
 func QueryUserRequestAsSQL(modelName string, input any) (string, error) {
 	model, err := ollama.New(ollama.WithModel(modelName))
 	if err != nil {
 		return "", err
 	}
-	
+
 	db, err := sqldatabase.NewSQLDatabaseWithDSN("pgx", database.CreatePostgresDSN(), nil)
-    if err != nil {
-        return "", fmt.Errorf("error connecting to database: %w", err)
-    }
-    defer db.Close()
+	if err != nil {
+		return "", fmt.Errorf("error connecting to database: %w", err)
+	}
+	defer db.Close()
 
 	sqlDatabaseChain := chains.NewSQLDatabaseChain(
 		model, 100, db)
-
 
 	tables, err := database.GetTableSchemaAsString()
 	if err != nil {

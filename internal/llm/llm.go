@@ -47,10 +47,10 @@ func QueryOllama(model string, chatMessages []OllamaChatMessage) (string, error)
 
 		if ollamaResponse.Message.Content != "" {
 			fullResponse.WriteString(ollamaResponse.Message.Content)
-			}
+		}
 
 		if ollamaResponse.Done {
-			break 
+			break
 		}
 	}
 
@@ -66,52 +66,48 @@ func QueryOllama(model string, chatMessages []OllamaChatMessage) (string, error)
 	return fullResponse.String(), nil
 }
 
-
 func ProcessLLMSimpleQuery(request models.LLMSimpleQueryRequest) (string, error) {
-    db,err := database.CreateDatabaseConnectionFromEnv()
+	db, err := database.CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return "", fmt.Errorf("error creating database connection: %w", err)
 	}
-    defer db.Close()
+	defer db.Close()
 
-    var conversationHistory []OllamaChatMessage
-    if request.ConversationID != 0 {
-        messages, err :=database.GetRecentMessages(db, request.ConversationID, 10)
-        if err != nil {
-            return "", fmt.Errorf("error retrieving conversation history: %w", err)
-        }
-        
+	var conversationHistory []OllamaChatMessage
+	if request.ConversationID != 0 {
+		messages, err := database.GetRecentMessages(db, request.ConversationID, 10)
+		if err != nil {
+			return "", fmt.Errorf("error retrieving conversation history: %w", err)
+		}
 
-        for _, msg := range messages {
-            conversationHistory = append(conversationHistory, OllamaChatMessage{
-                Role:    msg.Role,
-                Content: msg.Content,
-            })
-        }
-    }
+		for _, msg := range messages {
+			conversationHistory = append(conversationHistory, OllamaChatMessage{
+				Role:    msg.Role,
+				Content: msg.Content,
+			})
+		}
+	}
 
-    conversationHistory = append(conversationHistory, OllamaChatMessage{
-        Role:    "user",
-        Content: request.Input,
-    })
+	conversationHistory = append(conversationHistory, OllamaChatMessage{
+		Role:    "user",
+		Content: request.Input,
+	})
 
-    response, err := QueryOllama(request.Model, conversationHistory)
-    if err != nil {
-        return "", fmt.Errorf("error querying Ollama: %w", err)
-    }
+	response, err := QueryOllama(request.Model, conversationHistory)
+	if err != nil {
+		return "", fmt.Errorf("error querying Ollama: %w", err)
+	}
 
-    if request.ConversationID != 0 {
-        title := fmt.Sprintf("Simple Query: %s", truncateString(request.Input, 50))
-        err = database.SaveMessages(db, request.ConversationID, []database.Message{
-            {Role: "user", Content: request.Input},
-            {Role: "assistant", Content: response},
-        }, title)
-        if err != nil {
-            return "", fmt.Errorf("error saving conversation: %w", err)
-        }
-    }
+	title := fmt.Sprintf("Simple Query: %s", truncateString(request.Input, 50))
+	err = database.SaveMessages(db, request.ConversationID, []database.Message{
+		{Role: "user", Content: request.Input},
+		{Role: "assistant", Content: strings.ReplaceAll(response, "\n", "\\n")},
+	}, title)
+	if err != nil {
+		return "", fmt.Errorf("error saving conversation: %w", err)
+	}
 
-    return response, nil
+	return response, nil
 }
 
 func ProcessLLMRAGQuery(request models.LLMRAGQueryRequest) (string, error) {
@@ -125,4 +121,3 @@ func ProcessLLMRAGQuery(request models.LLMRAGQueryRequest) (string, error) {
 			{Role: "user", Content: "QUERY:\n" + request.Input},
 			{Role: "user", Content: "SUB QUERIES AND ANSWERS:\n" + decomposedQueriesAndAnswers}})
 }
-

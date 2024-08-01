@@ -334,5 +334,3 @@ func ProcessText(rawText string) string {
 	normalizedText := normalizeWhitespace(textWithoutNonPrintable)
 	return normalizedText
 }
-
-

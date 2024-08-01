@@ -30,14 +30,13 @@ func CreateEmbedding(requestModel string, content string) (pgvector.Vector, erro
 }
 
 func ProcessDocumentEmbeddingsInChunks(request models.DocumentEmbeddingsRequest) error {
-	fmt.Printf("ProcessDocumentEmbeddingsInChunks\n")
 	db, err := database.CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return fmt.Errorf("error creating database connection: %w", err)
 	}
 	defer db.Close()
 	content, err := fileprocessing.GetFileChunksFromCIDAsStrings(request.CID, 1000)
-	fmt.Printf("Content: %v\n", content)
+
 	if err != nil {
 		return fmt.Errorf("error getting content for CID: %w", err)
 	}
@@ -47,8 +46,6 @@ func ProcessDocumentEmbeddingsInChunks(request models.DocumentEmbeddingsRequest)
 			fmt.Printf("Warning: Empty chunk at index %d\n", i)
 			continue
 		}
-
-		fmt.Printf("Processing chunk %d, length: %d\n", i, len(chunk))
 
 		embedding, err := CreateEmbedding(request.Model, chunk)
 		if err != nil {
@@ -61,11 +58,7 @@ func ProcessDocumentEmbeddingsInChunks(request models.DocumentEmbeddingsRequest)
 			fmt.Printf("Error inserting document embedding for chunk %d: %v\n", i, err)
 			continue
 		}
-
-		fmt.Printf("Successfully processed chunk %d\n", i)
 	}
-
-	fmt.Println("Document was chunked and embeddings processed and inserted successfully.")
 	return nil
 }
 

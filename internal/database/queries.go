@@ -12,7 +12,6 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
-
 func GetTableSchemaAsString() (string, error) {
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
@@ -20,12 +19,12 @@ func GetTableSchemaAsString() (string, error) {
 	}
 	defer db.Close()
 
-    var tables []struct {
-        TableName string
-        Columns   string
-    }
+	var tables []struct {
+		TableName string
+		Columns   string
+	}
 
-    _, err = db.Query(&tables, `
+	_, err = db.Query(&tables, `
         SELECT table_name, 
                string_agg(column_name || ' ' || data_type, ', ' ORDER BY ordinal_position) AS columns
         FROM information_schema.columns 
@@ -33,15 +32,15 @@ func GetTableSchemaAsString() (string, error) {
         GROUP BY table_name
         ORDER BY table_name
     `)
-    if err != nil {
-        return "", err
-    }
+	if err != nil {
+		return "", err
+	}
 
-    var schema strings.Builder
-    for _, table := range tables {
-        schema.WriteString(fmt.Sprintf("%s: %s\n", table.TableName, table.Columns))
-    }
-    return schema.String(), nil
+	var schema strings.Builder
+	for _, table := range tables {
+		schema.WriteString(fmt.Sprintf("%s: %s\n", table.TableName, table.Columns))
+	}
+	return schema.String(), nil
 }
 
 func GetRowAsAString(request models.RowEmbeddingsRequest) (string, error) {
@@ -211,8 +210,6 @@ func GetSimilarRowsFromTable(tableName string, queryEmbedding pgvector.Vector, l
 	return result, nil
 }
 
-
-
 func GetRecentMessages(db *pg.DB, conversationID int64, limit int) ([]Message, error) {
 	//fmt.Printf("GetRecentMessages\n")
 	var messages []Message
@@ -224,86 +221,82 @@ func GetRecentMessages(db *pg.DB, conversationID int64, limit int) ([]Message, e
 	return messages, err
 }
 
-
 func GetOrCreateConversation(db *pg.DB, conversationID int64, title string) (*Conversation, error) {
-    conversation := &Conversation{ID: conversationID}
-    err := db.Model(conversation).WherePK().Select()
-    if err == pg.ErrNoRows {
-        // Conversation doesn't exist, create a new one
-        conversation = &Conversation{
-            Title: title,
-        }
-        _, err = db.Model(conversation).Insert()
-        if err != nil {
-            return nil, fmt.Errorf("error creating new conversation: %w", err)
-        }
-    } else if err != nil {
-        return nil, fmt.Errorf("error retrieving conversation: %w", err)
-    }
-    return conversation, nil
+	conversation := &Conversation{ID: conversationID}
+	err := db.Model(conversation).WherePK().Select()
+	if err == pg.ErrNoRows {
+		// Conversation doesn't exist, create a new one
+		conversation = &Conversation{
+			Title: title,
+		}
+		_, err = db.Model(conversation).Insert()
+		if err != nil {
+			return nil, fmt.Errorf("error creating new conversation: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("error retrieving conversation: %w", err)
+	}
+	return conversation, nil
 }
 
 func SaveMessages(db *pg.DB, conversationID int64, messages []Message, title string) error {
-    conversation, err := GetOrCreateConversation(db, conversationID, title)
-    if err != nil {
-        return err
-    }
+	conversation, err := GetOrCreateConversation(db, conversationID, title)
+	if err != nil {
+		return err
+	}
 
-    for _, msg := range messages {
-        msg.ConversationID = conversation.ID
-        msg.Conversation = conversation
-        _, err := db.Model(&msg).Insert()
-        if err != nil {
-            return fmt.Errorf("error inserting message: %w", err)
-        }
-    }
-    return nil
+	for _, msg := range messages {
+		msg.ConversationID = conversation.ID
+		msg.Conversation = conversation
+		_, err := db.Model(&msg).Insert()
+		if err != nil {
+			return fmt.Errorf("error inserting message: %w", err)
+		}
+	}
+	return nil
 }
-
 
 func GetSimilaritySearchDocuments(db *pg.DB, embedding pgvector.Vector, searchLimit int) ([]Document, error) {
-    var documents []Document
-    query := ConstructSimilarDocumentsQuery(embedding, searchLimit)
-    _, err := db.Query(&documents, query)
-    return documents, err
+	var documents []Document
+	query := ConstructSimilarDocumentsQuery(embedding, searchLimit)
+	_, err := db.Query(&documents, query)
+	return documents, err
 }
 
-
 func GetAllSimilarRowsFromDB(db *pg.DB, embedding pgvector.Vector, searchLimit int) (map[string][]map[string]interface{}, error) {
-    results := make(map[string][]map[string]interface{})
-    for _, tableName := range TableNames {
-        rows, err := GetSimilarRowsFromTable(tableName, embedding, searchLimit)
-        if err != nil {
-            return nil, fmt.Errorf("error searching table %s: %w", tableName, err)
-        }
-        results[tableName] = rows
-    }
-    return results, nil
+	results := make(map[string][]map[string]interface{})
+	for _, tableName := range TableNames {
+		rows, err := GetSimilarRowsFromTable(tableName, embedding, searchLimit)
+		if err != nil {
+			return nil, fmt.Errorf("error searching table %s: %w", tableName, err)
+		}
+		results[tableName] = rows
+	}
+	return results, nil
 }
 
 func ExecuteSQLQuery(db *pg.DB, query string) ([]map[string]interface{}, error) {
-    var result []map[string]interface{}
-    _, err := db.Query(&result, query)
-    if err != nil {
-        return nil, fmt.Errorf("error executing SQL query: %w", err)
-    }
-    return result, nil
+	var result []map[string]interface{}
+	_, err := db.Query(&result, query)
+	if err != nil {
+		return nil, fmt.Errorf("error executing SQL query: %w", err)
+	}
+	return result, nil
 }
 
-
 func SaveConversationAsMessages(db *pg.DB, conversationID int64, userInput, assistantResponse string) error {
-    if conversationID == 0 {
-        return nil
-    }
+	if conversationID == 0 {
+		return nil
+	}
 
-    title := fmt.Sprintf("Query: %s", userInput)
-    err := SaveMessages(db, conversationID, []Message{
-        {Role: "user", Content: userInput},
-        {Role: "assistant", Content: assistantResponse},
-    }, title)
-    if err != nil {
-        return fmt.Errorf("error saving conversation: %w", err)
-    }
+	title := fmt.Sprintf("Simple Query: %s", userInput)
+	err := SaveMessages(db, conversationID, []Message{
+		{Role: "user", Content: userInput},
+		{Role: "assistant", Content: assistantResponse},
+	}, title)
+	if err != nil {
+		return fmt.Errorf("error saving conversation: %w", err)
+	}
 
-    return nil
+	return nil
 }

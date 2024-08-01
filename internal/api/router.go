@@ -12,6 +12,7 @@ func SetupRouter() *gin.Engine {
 	router.GET("/ping", handlePing)
 	router.GET("/user/:name", handleUserProfile(db))
 
+	//TODO: Add authentication
 	authorized := router.Group("/", gin.BasicAuth(gin.Accounts{
 		"foo":  "bar",
 		"manu": "123",
@@ -21,10 +22,8 @@ func SetupRouter() *gin.Engine {
 	authorized.POST("generateRowEmbeddings", handleGenerateRowEmbeddings)
 	authorized.POST("generateDocumentEmbeddings", handleGenerateDocumentEmbeddings)
 	authorized.POST("/llm/simple", handleLLMSimpleQuery)
-    authorized.POST("/llm/rag", handleLLMRAGQuery)
-    authorized.POST("/llm/sql", handleLLMSQLQuery)
-
+	authorized.POST("/llm/rag", handleLLMRAGQuery)
+	authorized.POST("/llm/sql", handleLLMSQLQuery)
 
 	return router
 }
-

@@ -10,7 +10,7 @@ import (
 	"github.com/russross/blackfriday/v2"
 )
 
-func GetCIDAsBytes(cid string) ([]byte, error) {
+func getCIDAsBytes(cid string) ([]byte, error) {
 	baseURL := "http://127.0.0.1:5001/api/v0/cat"
 
 	u, err := url.Parse(baseURL)
@@ -46,8 +46,9 @@ func GetCIDAsBytes(cid string) ([]byte, error) {
 	return body, nil
 }
 
+// TODO: Remove support for file types other than .text/.txt; parsing doesn't work at the moment for other file types
 func GetFileChunksFromCIDAsStrings(cid string, chunkSize int) ([]string, error) {
-	fileBytes, err := GetCIDAsBytes(cid)
+	fileBytes, err := getCIDAsBytes(cid)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving file from CID: %v", err)
 	}

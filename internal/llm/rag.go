@@ -8,7 +8,7 @@ import (
 
 func AgenticFlow(request models.LLMRAGQueryRequest) (string, error) {
 
-	decomposed_query_request, err := QueryOllama(request.Model, []OllamaChatMessage{{Role: "user", Content: string(SubquestionInstruction) + "\n" +request.Input}})
+	decomposed_query_request, err := QueryOllama(request.Model, []OllamaChatMessage{{Role: "user", Content: string(SubquestionInstruction) + "\n" + request.Input}})
 	if err != nil {
 		return "", err
 	}
@@ -16,7 +16,7 @@ func AgenticFlow(request models.LLMRAGQueryRequest) (string, error) {
 	fmt.Printf("Decomposed query request: %s\n", decomposed_query_request)
 
 	decomposed_query, err := ParseSubQuestions(decomposed_query_request)
-	if err != nil{
+	if err != nil {
 		return "", err
 	}
 
@@ -64,7 +64,7 @@ func AnswerSubQuestion(request models.LLMRAGQueryRequest, question string) (stri
 	if len(data_sources) == 1 && data_sources[0] == "sql" {
 		fmt.Printf("SQL FLOW!\n")
 		fmt.Printf("Question: %s\n", question)
-		temp,err := sqlFlow(request, question)
+		temp, err := sqlFlow(request, question)
 		fmt.Printf("Answer: %s\n", temp)
 		return temp, err
 	}
