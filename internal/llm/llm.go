@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
+func QueryOllama(model string, chatMessages []OllamaChatMessage) (string, error) {
 	url := "http://localhost:11434/api/chat"
 
 	jsonQuery, err := json.Marshal(OllamaRequest{
@@ -66,43 +66,63 @@ func QueryOllama(model string, chatMessages []ChatMessage) (string, error) {
 	return fullResponse.String(), nil
 }
 
-func ProcessLLMQuery(request models.LLMQueryRequest) (string, error) {
+
+func ProcessLLMSimpleQuery(request models.LLMSimpleQueryRequest) (string, error) {
+    db,err := database.CreateDatabaseConnectionFromEnv()
+	if err != nil {
+		return "", fmt.Errorf("error creating database connection: %w", err)
+	}
+    defer db.Close()
+
+    var conversationHistory []OllamaChatMessage
+    if request.ConversationID != 0 {
+        messages, err :=database.GetRecentMessages(db, request.ConversationID, 10)
+        if err != nil {
+            return "", fmt.Errorf("error retrieving conversation history: %w", err)
+        }
+        
+
+        for _, msg := range messages {
+            conversationHistory = append(conversationHistory, OllamaChatMessage{
+                Role:    msg.Role,
+                Content: msg.Content,
+            })
+        }
+    }
+
+    conversationHistory = append(conversationHistory, OllamaChatMessage{
+        Role:    "user",
+        Content: request.Input,
+    })
+
+    response, err := QueryOllama(request.Model, conversationHistory)
+    if err != nil {
+        return "", fmt.Errorf("error querying Ollama: %w", err)
+    }
+
+    if request.ConversationID != 0 {
+        title := fmt.Sprintf("Simple Query: %s", truncateString(request.Input, 50))
+        err = database.SaveMessages(db, request.ConversationID, []database.Message{
+            {Role: "user", Content: request.Input},
+            {Role: "assistant", Content: response},
+        }, title)
+        if err != nil {
+            return "", fmt.Errorf("error saving conversation: %w", err)
+        }
+    }
+
+    return response, nil
+}
+
+func ProcessLLMRAGQuery(request models.LLMRAGQueryRequest) (string, error) {
+
 	decomposedQueriesAndAnswers, err := AgenticFlow(request)
 	if err != nil {
 		return "", err
 	}
 	return QueryOllama(request.Model,
-		[]ChatMessage{{Role: "user", Content: string(SnythesizeInstruction)},
+		[]OllamaChatMessage{{Role: "user", Content: string(SnythesizeInstruction)},
 			{Role: "user", Content: "QUERY:\n" + request.Input},
 			{Role: "user", Content: "SUB QUERIES AND ANSWERS:\n" + decomposedQueriesAndAnswers}})
 }
 
-
-func ParseRelevantData(relevantData database.RelevantData) (string, error) {
-	var result strings.Builder
-
-	// Parse similar rows
-	result.WriteString("Relevant Data from Database Tables:\n")
-	for tableName, rows := range relevantData.SimilarRows {
-		result.WriteString(fmt.Sprintf("Table: %s\n", tableName))
-		for i, row := range rows {
-			result.WriteString(fmt.Sprintf("  Row %d:\n", i+1))
-			for key, value := range row {
-				result.WriteString(fmt.Sprintf("    %s: %v\n", key, value))
-			}
-		}
-		result.WriteString("\n")
-	}
-
-	// Parse similar documents
-	result.WriteString("Relevant Documents:\n")
-	for i, doc := range relevantData.SimilarDocuments {
-		result.WriteString(fmt.Sprintf("Document %d:\n", i+1))
-		result.WriteString(fmt.Sprintf("  Collection Slug: %s\n", doc.CollectionSlug))
-		result.WriteString(fmt.Sprintf("  CID: %s\n", doc.CID))
-		result.WriteString(fmt.Sprintf("  Content: %s\n", doc.Content))
-		result.WriteString("\n")
-	}
-
-	return result.String(), nil
-}

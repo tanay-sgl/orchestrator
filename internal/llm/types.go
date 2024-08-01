@@ -3,7 +3,7 @@ package llm
 // Ollama HTTP request format
 type OllamaRequest struct {
 	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
+	Messages []OllamaChatMessage `json:"messages"`
 }
 
 // Ollama HTTP response format
@@ -25,7 +25,7 @@ type OllamaResponse struct {
 }
 
 // Ollama Default Message Format
-type ChatMessage struct {
+type OllamaChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }

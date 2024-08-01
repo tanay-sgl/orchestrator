@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"orchestrator/internal/database"
-	"orchestrator/internal/models"
 
 	"github.com/tmc/langchaingo/chains"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -13,13 +12,13 @@ import (
 )
 
 
-func QueryUserRequestAsSQL(request models.LLMQueryRequest) (string, error) {
-	model, err := ollama.New(ollama.WithModel(request.Model))
+func QueryUserRequestAsSQL(modelName string, input any) (string, error) {
+	model, err := ollama.New(ollama.WithModel(modelName))
 	if err != nil {
 		return "", err
 	}
-
-	db, err := sqldatabase.NewSQLDatabaseWithDSN("postgres", database.CreatePostgresDSN(), nil)
+	
+	db, err := sqldatabase.NewSQLDatabaseWithDSN("pgx", database.CreatePostgresDSN(), nil)
     if err != nil {
         return "", fmt.Errorf("error connecting to database: %w", err)
     }
@@ -28,10 +27,17 @@ func QueryUserRequestAsSQL(request models.LLMQueryRequest) (string, error) {
 	sqlDatabaseChain := chains.NewSQLDatabaseChain(
 		model, 100, db)
 
-	ctx := context.Background()
-	result, err := chains.Run(ctx, sqlDatabaseChain, request.Input)
+
+	tables, err := database.GetTableSchemaAsString()
 	if err != nil {
 		return "", err
+	}
+	input = fmt.Sprintf("%s\n%s", input, tables)
+
+	ctx := context.Background()
+	result, err := chains.Run(ctx, sqlDatabaseChain, input)
+	if err != nil {
+		return "", fmt.Errorf("error running chain: %w", err)
 	}
 	return result, nil
 }

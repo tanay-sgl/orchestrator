@@ -159,8 +159,45 @@ func SanitizeAndParseSQLQuery(response string) (string, error) {
 
 	return query, nil
 } 
+
+
+func ParseRowsToString(rows map[string][]map[string]interface{}) (string, error) {
+	var result strings.Builder
+
+	for tableName, rows := range rows {
+		result.WriteString(fmt.Sprintf("Table: %s\n", tableName))
+		for i, row := range rows {
+			result.WriteString(fmt.Sprintf("  Row %d:\n", i+1))
+			for key, value := range row {
+				result.WriteString(fmt.Sprintf("    %s: %v\n", key, value))
+			}
+		}
+		result.WriteString("\n")
+	}
+
+	return result.String(), nil
+}
+
+
+func ParseDocumentsToString(documents []database.Document) (string, error) {
+	var result strings.Builder
+	result.WriteString("Relevant Documents:\n")
+	for i, doc := range documents {
+		result.WriteString(fmt.Sprintf("Document %d:\n", i+1))
+		result.WriteString(fmt.Sprintf("  Collection Slug: %s\n", doc.CollectionSlug))
+		result.WriteString(fmt.Sprintf("  CID: %s\n", doc.CID))
+		result.WriteString(fmt.Sprintf("  Content: %s\n", doc.Content))
+		result.WriteString("\n")
+	}
+
+	return result.String(), nil
+}
+
+
+
+
 func SourceData(model string, data_sources []string, question string, search_limit int) (string, error) {
-    relevant_data := database.RelevantData{}
+    var data strings.Builder
     db, err := database.CreateDatabaseConnectionFromEnv()
     if err != nil {
         return "", fmt.Errorf("error connecting to database: %w", err)
@@ -170,6 +207,7 @@ func SourceData(model string, data_sources []string, question string, search_lim
     for _, data_source := range data_sources {
         switch data_source {
         case "documents":
+			fmt.Printf("DOCUMENTS FLOW!\n")
             embedding, err := CreateEmbedding(model, question)
             if err != nil {
                 continue
@@ -178,9 +216,12 @@ func SourceData(model string, data_sources []string, question string, search_lim
             if err != nil {
                 continue
             }
-            relevant_data.SimilarDocuments = similarDocuments
+
+		   parsedDocuments , err := ParseDocumentsToString(similarDocuments)
+           data.WriteString(parsedDocuments+ "\n")
 
         case "sql":
+			fmt.Printf("Getting SQL Rows!\n")
             requestEmbedding, err := CreateEmbedding(model, question)
             if err != nil {
                 continue
@@ -196,7 +237,7 @@ func SourceData(model string, data_sources []string, question string, search_lim
                 return "", fmt.Errorf("failed to marshal result: %v", err)
             }
 
-            sql_request, err := QueryOllama(model, []ChatMessage{
+            sql_request, err := QueryOllama(model, []OllamaChatMessage{
                 {Role: "user", Content: string(SQLInstruction)},
                 {Role: "user", Content: "METADATA:\n" + string(resultRow) + "\nQUERY:\n"},
                 {Role: "user", Content: question},
@@ -215,11 +256,13 @@ func SourceData(model string, data_sources []string, question string, search_lim
                 return "", fmt.Errorf("error executing SQL query: %w", err)
             }
 
-            relevant_data.SimilarRows = map[string][]map[string]interface{}{
+			parsedRows, err := ParseRowsToString( map[string][]map[string]interface{}{
                 "sql_result": result,
-            }
+            })
+			data.WriteString(parsedRows+ "\n")
 
         case "default":
+			fmt.Printf("DEFAULT FLOW!\n")
             embedding, err := CreateEmbedding(model, question)
             if err != nil {
                 return "", fmt.Errorf("error creating embedding: %w", err)
@@ -235,13 +278,53 @@ func SourceData(model string, data_sources []string, question string, search_lim
                 return "", fmt.Errorf("error getting similar documents: %w", err)
             }
 
-            relevant_data.SimilarRows = allSimilarRows
-            relevant_data.SimilarDocuments = similarDocuments
+            parsedRows, err := ParseRowsToString(allSimilarRows)
+			data.WriteString(parsedRows+ "\n")
+            parsedDocuments , err := ParseDocumentsToString(similarDocuments)
+           	data.WriteString(parsedDocuments+ "\n")
 
         case "NA":
-            return QueryOllama(model, []ChatMessage{{Role: "user", Content: question}})
+            return QueryOllama(model, []OllamaChatMessage{{Role: "user", Content: question}})
         }
     }
 
-    return ParseRelevantData(relevant_data)
+    return data.String(), nil
 }
+
+// Helper function to truncate a string
+func truncateString(s string, maxLength int) string {
+    if len(s) <= maxLength {
+        return s
+    }
+    return s[:maxLength] + "..."
+}
+
+func ParseRelevantData(relevantData database.RelevantData) (string, error) {
+	var result strings.Builder
+
+	// Parse similar rows
+	result.WriteString("Relevant Data from Database Tables:\n")
+	for tableName, rows := range relevantData.SimilarRows {
+		result.WriteString(fmt.Sprintf("Table: %s\n", tableName))
+		for i, row := range rows {
+			result.WriteString(fmt.Sprintf("  Row %d:\n", i+1))
+			for key, value := range row {
+				result.WriteString(fmt.Sprintf("    %s: %v\n", key, value))
+			}
+		}
+		result.WriteString("\n")
+	}
+
+	// Parse similar documents
+	result.WriteString("Relevant Documents:\n")
+	for i, doc := range relevantData.SimilarDocuments {
+		result.WriteString(fmt.Sprintf("Document %d:\n", i+1))
+		result.WriteString(fmt.Sprintf("  Collection Slug: %s\n", doc.CollectionSlug))
+		result.WriteString(fmt.Sprintf("  CID: %s\n", doc.CID))
+		result.WriteString(fmt.Sprintf("  Content: %s\n", doc.Content))
+		result.WriteString("\n")
+	}
+
+	return result.String(), nil
+}
+
