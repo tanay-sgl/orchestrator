@@ -83,46 +83,56 @@ func handleGenerateDocumentEmbeddings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Processing started"})
 }
 
-func handleLLMQuery(c *gin.Context) {
-	user := c.MustGet(gin.AuthUserKey).(string)
-	if user != "foo" {
-		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
-		return
-	}
 
-	var request models.LLMQueryRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
-		return
-	}
+func handleLLMSimpleQuery(c *gin.Context) {
+    var request models.LLMSimpleQueryRequest
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	response, err := llm.ProcessLLMQuery(request)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
-		return
-	}
+    response, err := llm.ProcessLLMSimpleQuery(request)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "response": response})
+    c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
-func searchDocuments(c *gin.Context) {
-	user := c.MustGet(gin.AuthUserKey).(string)
-	if user != "foo" {
-		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "Unauthorized"})
-		return
-	}
+func handleLLMRAGQuery(c *gin.Context) {
+    var request models.LLMRAGQueryRequest
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	var request models.LLMQueryRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
-		return
-	}
+    response, err := llm.ProcessLLMRAGQuery(request)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
 
-	documents, err := llm.SourceData(request.Model, []string{"documents"}, request.Input, request.SearchLimit)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
-		return
-	}
+    c.JSON(http.StatusOK, gin.H{"response": response})
+}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "documents": documents})
+func handleLLMSQLQuery(c *gin.Context) {
+    var request models.LLMSQLQueryRequest
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+	// input := map[string]any{
+	// 	"query":             request.Input,
+	// 	"table_names_to_use": []string{"collection"},
+	// }
+
+    response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"response": response})
 }

@@ -20,8 +20,10 @@ func SetupRouter() *gin.Engine {
 	authorized.POST("admin", handleAdminEndpoint(db))
 	authorized.POST("generateRowEmbeddings", handleGenerateRowEmbeddings)
 	authorized.POST("generateDocumentEmbeddings", handleGenerateDocumentEmbeddings)
-	authorized.POST("llmQuery", handleLLMQuery)
-	authorized.POST("searchDocuments", searchDocuments)
+	authorized.POST("/llm/simple", handleLLMSimpleQuery)
+    authorized.POST("/llm/rag", handleLLMRAGQuery)
+    authorized.POST("/llm/sql", handleLLMSQLQuery)
+
 
 	return router
 }
