@@ -47,8 +47,6 @@ func GetCIDAsBytes(cid string) ([]byte, error) {
 }
 
 func GetFileChunksFromCIDAsStrings(cid string, chunkSize int) ([]string, error) {
-	//fmt.Printf("GetFileChunksFromCIDAsStrings\n")
-	// Get the file bytes using the provided function
 	fileBytes, err := GetCIDAsBytes(cid)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving file from CID: %v", err)
