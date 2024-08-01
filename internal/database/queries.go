@@ -14,7 +14,6 @@ import (
 
 
 func GetTableSchemaAsString() (string, error) {
-
 	db, err := CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return "", err
@@ -226,6 +225,42 @@ func GetRecentMessages(db *pg.DB, conversationID int64, limit int) ([]Message, e
 }
 
 
+func GetOrCreateConversation(db *pg.DB, conversationID int64, title string) (*Conversation, error) {
+    conversation := &Conversation{ID: conversationID}
+    err := db.Model(conversation).WherePK().Select()
+    if err == pg.ErrNoRows {
+        // Conversation doesn't exist, create a new one
+        conversation = &Conversation{
+            Title: title,
+        }
+        _, err = db.Model(conversation).Insert()
+        if err != nil {
+            return nil, fmt.Errorf("error creating new conversation: %w", err)
+        }
+    } else if err != nil {
+        return nil, fmt.Errorf("error retrieving conversation: %w", err)
+    }
+    return conversation, nil
+}
+
+func SaveMessages(db *pg.DB, conversationID int64, messages []Message, title string) error {
+    conversation, err := GetOrCreateConversation(db, conversationID, title)
+    if err != nil {
+        return err
+    }
+
+    for _, msg := range messages {
+        msg.ConversationID = conversation.ID
+        msg.Conversation = conversation
+        _, err := db.Model(&msg).Insert()
+        if err != nil {
+            return fmt.Errorf("error inserting message: %w", err)
+        }
+    }
+    return nil
+}
+
+
 func GetSimilaritySearchDocuments(db *pg.DB, embedding pgvector.Vector, searchLimit int) ([]Document, error) {
     var documents []Document
     query := ConstructSimilarDocumentsQuery(embedding, searchLimit)
@@ -253,4 +288,22 @@ func ExecuteSQLQuery(db *pg.DB, query string) ([]map[string]interface{}, error) 
         return nil, fmt.Errorf("error executing SQL query: %w", err)
     }
     return result, nil
+}
+
+
+func SaveConversationAsMessages(db *pg.DB, conversationID int64, userInput, assistantResponse string) error {
+    if conversationID == 0 {
+        return nil
+    }
+
+    title := fmt.Sprintf("Query: %s", userInput)
+    err := SaveMessages(db, conversationID, []Message{
+        {Role: "user", Content: userInput},
+        {Role: "assistant", Content: assistantResponse},
+    }, title)
+    if err != nil {
+        return fmt.Errorf("error saving conversation: %w", err)
+    }
+
+    return nil
 }

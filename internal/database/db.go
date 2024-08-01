@@ -25,10 +25,16 @@ func CreateDatabaseConnectionFromEnv() (*pg.DB, error) {
 }
 
 func CreatePostgresDSN() string {
-    return fmt.Sprintf("postgres://%s:%s@%s/%s",
+    return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable",
         os.Getenv("TIMESCALE_USER"),
         os.Getenv("TIMESCALE_PASSWORD"),
         os.Getenv("TIMESCALE_ADDRESS"),
         os.Getenv("TIMESCALE_DATABASE"))
 }
 
+func PrintEnvVars() {
+    fmt.Printf("TIMESCALE_USER: %s\n", os.Getenv("TIMESCALE_USER"))
+    fmt.Printf("TIMESCALE_PASSWORD: %s\n", os.Getenv("TIMESCALE_PASSWORD"))
+    fmt.Printf("TIMESCALE_ADDRESS: %s\n", os.Getenv("TIMESCALE_ADDRESS"))
+    fmt.Printf("TIMESCALE_DATABASE: %s\n", os.Getenv("TIMESCALE_DATABASE"))
+}
