@@ -1,41 +1,40 @@
 package llm
 
 import (
-	"context"
 	"fmt"
 	"orchestrator/internal/database"
 
-	"github.com/tmc/langchaingo/chains"
-	"github.com/tmc/langchaingo/llms/ollama"
-	"github.com/tmc/langchaingo/tools/sqldatabase"
 	_ "github.com/tmc/langchaingo/tools/sqldatabase/postgresql"
 )
 
 func QueryUserRequestAsSQL(modelName string, input any) (string, error) {
-	model, err := ollama.New(ollama.WithModel(modelName))
+	db, err := database.CreateDatabaseConnectionFromEnv()
 	if err != nil {
-		return "", err
-	}
-
-	db, err := sqldatabase.NewSQLDatabaseWithDSN("pgx", database.CreatePostgresDSN(), nil)
-	if err != nil {
-		return "", fmt.Errorf("error connecting to database: %w", err)
+		return "", fmt.Errorf("error creating database connection: %w", err)
 	}
 	defer db.Close()
-
-	sqlDatabaseChain := chains.NewSQLDatabaseChain(
-		model, 100, db)
-
-	tables, err := database.GetTableSchemaAsString()
+	tableSchema, err := database.GetTableSchemaAsString()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error getting table schema: %w", err)
 	}
-	input = fmt.Sprintf("%s\n%s", input, tables)
 
-	ctx := context.Background()
-	result, err := chains.Run(ctx, sqlDatabaseChain, input)
+	query, err := QueryOllama(modelName, []OllamaChatMessage{{Role: "user", Content: string(SnythesizeInstruction)},
+		{Role:"user", Content: string(SQLInstruction)},
+		{Role: "user", Content: tableSchema},
+		{Role: "user", Content: "QUERY:\n" + fmt.Sprintf("%v", input)}})
+
 	if err != nil {
-		return "", fmt.Errorf("error running chain: %w", err)
+		return "", fmt.Errorf("error querying Ollama: %w", err)
 	}
-	return result, nil
+
+	query, err = SanitizeAndParseSQLQuery(query)
+	if err != nil {
+		return "", fmt.Errorf("error sanitizing and parsing SQL query: %w", err)
+	}
+
+	result, err := database.ExecuteSQLQuery(db, query)
+	if err != nil {
+		return "", fmt.Errorf("error executing SQL query: %w", err)
+	}
+	return fmt.Sprintf("%v", result), nil
 }
