@@ -120,12 +120,6 @@ func handleLLMSQLQuery(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// input := map[string]any{
-	// 	"query":             request.Input,
-	// 	"table_names_to_use": []string{"collection"},
-	// }
-
 	response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
