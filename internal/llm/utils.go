@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"orchestrator/internal/database"
-	"regexp"
 	"strings"
 )
 
@@ -117,47 +116,7 @@ func ParseSubQuestions(response string) ([]string, error) {
 	return subQuestions, nil
 }
 
-func SanitizeAndParseSQLQuery(response string) (string, error) {
-	//fmt.Printf(response)
-	// First, let's extract the SQL query from the response
-	sqlRegex := regexp.MustCompile(`(?i)SQL:\s*(.+)`)
-	matches := sqlRegex.FindStringSubmatch(response)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("no SQL query found in the response")
-	}
-	query := matches[1]
 
-	// Trim any whitespace and remove any trailing semicolon
-	query = strings.TrimSpace(query)
-	query = strings.TrimSuffix(query, ";")
-
-	// List of disallowed keywords (case-insensitive)
-	disallowedKeywords := []string{
-		"DROP", "DELETE", "TRUNCATE", "ALTER", "CREATE", "INSERT", "UPDATE",
-		"GRANT", "REVOKE", "UNION", "--", "/*", "*/", "EXEC", "EXECUTE",
-	}
-
-	// Check for disallowed keywords
-	lowerQuery := strings.ToLower(query)
-	for _, keyword := range disallowedKeywords {
-		if strings.Contains(lowerQuery, strings.ToLower(keyword)) {
-			return "", fmt.Errorf("disallowed keyword found: %s", keyword)
-		}
-	}
-
-	// Validate that the query starts with SELECT
-	if !strings.HasPrefix(lowerQuery, "select") {
-		return "", fmt.Errorf("query must start with SELECT")
-	}
-
-	// Basic structure validation
-	// This is a simple check and might need to be expanded based on your specific needs
-	if !strings.Contains(lowerQuery, "from") {
-		return "", fmt.Errorf("invalid query structure: missing FROM clause")
-	}
-
-	return query, nil
-}
 
 func ParseRowsToString(rows map[string][]map[string]interface{}) (string, error) {
 	var result strings.Builder
