@@ -7,14 +7,14 @@ import (
 	"strings"
 )
 
-func QueryUserRequestForSimilarDocuments(request models.LLMRAGQueryRequest, question string) (string, error) {
+func QueryUserRequestForSimilarDocuments(request models.LLMRAGQueryRequest) (string, error) {
 	db, err := database.CreateDatabaseConnectionFromEnv()
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
 	var result strings.Builder
-	query_embedding, err := CreateEmbedding(request.Model, question)
+	query_embedding, err := CreateEmbedding(request.Model, request.Input)
 	if err != nil {
 		return "", err
 	}

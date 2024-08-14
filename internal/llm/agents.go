@@ -5,17 +5,19 @@ const DefaultInstruction Instruction = `Your task is to analyze natural language
 const SQLInstruction Instruction = `You are an expert SQL query generator. 
 Your task is to analyze natural language queries and convert them into appropriate SQL queries based on our database schema. Follow these guidelines:
 
+everything is linked to the collection_slug/opensea_slug key 
+
 1. DO NOT ASK ANY QUESTIONS. Work only with the given text.
 2. If the query is already simple (e.g., a basic SQL query like "select * from nft"), DO NOT break it down. Instead, return it as a single SQL query.
 3. You will be given the schema of the database. Use it to generate the appropriate SQL query.
 `
 const (
-   SubquestionInstruction Instruction = "Break down the given query into 3-5 simple, discrete sub-questions. Each sub-question should be independent and not rely on answers to other sub-questions. The sub-questions should collectively gather information needed to answer the original query. Format your response as a numbered list."
+	SubquestionInstruction Instruction = "Break down the given query into 3 simple, discrete sub-questions. Each sub-question should be independent and not rely on answers to other sub-questions. The sub-questions should collectively gather information needed to answer the original query. Format your response like this [question1, question2, question3,...] and don't reply with anything else"
 )
 
 const DataSourceInstruction Instruction = `You are a GameFi data expert. Analyze the given query and determine the most appropriate data source: 'sql' for on-chain data (transactions, transfers, NFT events, etc.) or 'documents' for information from white papers and other game documentation. If unsure or if both might be needed, respond with 'both'. Respond with only one of these options: 'sql', 'documents', or 'both'."
 `
-const GameFIGeniusInstruction Instruction = "You are a GameFi expert. Use the provided data to answer the query. If using SQL data, focus on interpreting on-chain events, transactions, and token transfers. If using document data, focus on explaining game mechanics, tokenomics, and other off-chain information. Provide a clear and concise answer."
+const GameFIGeniusInstruction Instruction = "You are a GameFi expert. Use the provided data to answer the query. If using SQL data, focus on interpreting on-chain events, transactions, and token transfers. If using document data, focus on explaining game mechanics, tokenomics, and other off-chain information. Provide a clear and concise answer quickly."
 
 const HallucinationDetectiveInstruction Instruction = `You are a hallucination detective. Compare the given response to the original query and context. Determine:
 YOU MAY NOT ASK ANY QUESTIONS; WORK WITH TEXT GIVEN.

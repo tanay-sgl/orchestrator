@@ -98,14 +98,13 @@ func handleLLMSimpleQuery(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
-func handleLLMRAGQuery(c *gin.Context) {
-	var request models.LLMRAGQueryRequest
+func handleLLMSQLQuery(c *gin.Context) {
+	var request models.LLMSQLQueryRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	response, err := llm.ProcessLLMRAGQuery(request)
+	response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -114,13 +113,30 @@ func handleLLMRAGQuery(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
-func handleLLMSQLQuery(c *gin.Context) {
-	var request models.LLMSQLQueryRequest
+func handleLLMRAGQuerySingleNode(c *gin.Context) {
+	var request models.LLMRAGQueryRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	response, err := llm.QueryUserRequestAsSQL(request.Model, request.Input)
+
+	response, err := llm.ProcessLLMRAGQuerySingleNode(request)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"response": response})
+}
+
+func handleLLMRAGQueryMultiNode(c *gin.Context) {
+	var request models.LLMRAGQueryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := llm.ProcessLLMRAGQueryMultiNode(request)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

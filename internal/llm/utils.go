@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"bufio"
 	"fmt"
 	"strings"
 )
@@ -23,46 +22,36 @@ func FormatSubQuestionAnswers(subQuestionAnswers []string) string {
 }
 
 func ParseSubQuestions(response string) ([]string, error) {
-	// Initialize a slice to hold the sub-questions
-	var subQuestions []string
+	// Find the opening and closing brackets
+	start := strings.Index(response, "[")
+	end := strings.LastIndex(response, "]")
 
-	// Create a scanner to read the response line by line
-	scanner := bufio.NewScanner(strings.NewReader(response))
-
-	// Flag to indicate when we've reached the sub-questions
-	subQuestionsStarted := false
-
-	// Iterate through each line of the response
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Check if we've reached the start of the sub-questions
-		if strings.HasPrefix(line, "SUB QUESTIONS:") {
-			subQuestionsStarted = true
-			continue
-		}
-
-		// If we've started processing sub-questions and the line is not empty
-		if subQuestionsStarted && line != "" {
-			// Remove the number and period at the start of the line
-			parts := strings.SplitN(line, ". ", 2)
-			if len(parts) == 2 {
-				subQuestions = append(subQuestions, parts[1])
-			}
-		}
-	}
-
-	// Check for scanning errors
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error scanning response: %w", err)
-	}
-
-	// Check if we found any sub-questions
-	if len(subQuestions) == 0 {
+	if start == -1 || end == -1 || start >= end {
 		return []string{}, nil
 	}
 
-	return subQuestions, nil
+	// Extract the content between the brackets
+	content := response[start+1 : end]
+
+	// Split the content by commas
+	questions := strings.Split(content, ",")
+
+	// Trim whitespace and remove quotes from each question
+	for i, q := range questions {
+		q = strings.TrimSpace(q)
+		q = strings.Trim(q, "\"")
+		questions[i] = q
+	}
+
+	// Remove any empty questions
+	var nonEmptyQuestions []string
+	for _, q := range questions {
+		if q != "" {
+			nonEmptyQuestions = append(nonEmptyQuestions, q)
+		}
+	}
+
+	return nonEmptyQuestions, nil
 }
 
 // Helper function to truncate a string
