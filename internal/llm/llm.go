@@ -109,15 +109,3 @@ func ProcessLLMSimpleQuery(request models.LLMSimpleQueryRequest) (string, error)
 
 	return response, nil
 }
-
-func ProcessLLMRAGQuery(request models.LLMRAGQueryRequest) (string, error) {
-
-	decomposedQueriesAndAnswers, err := AgenticFlow(request)
-	if err != nil {
-		return "", err
-	}
-	return QueryOllama(request.Model,
-		[]OllamaChatMessage{{Role: "user", Content: string(SnythesizeInstruction)},
-			{Role: "user", Content: "QUERY:\n" + request.Input},
-			{Role: "user", Content: "SUB QUERIES AND ANSWERS:\n" + decomposedQueriesAndAnswers}})
-}
